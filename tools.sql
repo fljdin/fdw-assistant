@@ -23,15 +23,15 @@ CREATE TABLE IF NOT EXISTS config (
     trunc boolean not null default true
 );
 
--- "run" table represents a execution of several jobs
-CREATE TABLE IF NOT EXISTS run (
-    run_id bigint generated always as identity primary key,
+-- "stage" table represents a execution of several jobs
+CREATE TABLE IF NOT EXISTS stage (
+    stage_id bigint generated always as identity primary key,
     ts timestamp default now()
 );
 
--- "job" table represents the state of table copies for each run
+-- "job" table represents the state of table copies for each stage
 CREATE TABLE IF NOT EXISTS job (
-    run_id bigint not null references run(run_id) on delete cascade,
+    stage_id bigint not null references stage(stage_id) on delete cascade,
     job_id bigint generated always as identity,
     config_id bigint not null references config(config_id) on delete cascade,
     lastseq bigint not null default 0,
@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS job (
     elapsed interval,
     ts timestamp,
     state state not null default 'pending',
-    PRIMARY KEY (run_id, job_id)
+    PRIMARY KEY (stage_id, job_id)
 );
 
 -- "copy" procedure transfers data from source to target
@@ -142,7 +142,7 @@ LANGUAGE SQL AS $$
      GROUP BY p_target;
 $$;
 
--- "plan" function inserts a new run record and returns the statements to execute
+-- "plan" function inserts a new stage record and returns the statements to execute
 -- "targets" parameter is used to filter the target relations
 CREATE OR REPLACE FUNCTION tools.plan(targets text[] DEFAULT '{}'::text[])
 RETURNS TABLE (statement text, target regclass)
@@ -153,20 +153,20 @@ LANGUAGE SQL AS $$
         UNION
         SELECT DISTINCT target FROM tools.config
         WHERE cardinality(targets) = 0
-    ), new_run AS (
-        INSERT INTO tools.run DEFAULT VALUES
-        RETURNING run_id
+    ), new_stage AS (
+        INSERT INTO tools.stage DEFAULT VALUES
+        RETURNING stage_id
     ), new_jobs AS (
-        INSERT INTO tools.job (run_id, config_id, lastseq)
-            -- Get the last sequence number from the last run
+        INSERT INTO tools.job (stage_id, config_id, lastseq)
+            -- Get the last sequence number from the last stage
             -- if target may not be truncated. Otherwise, use 0
-            SELECT run_id, config_id, COALESCE(
+            SELECT stage_id, config_id, COALESCE(
                 (SELECT max(lastseq) FROM tools.job
                    JOIN tools.config USING (config_id)
                   WHERE config_id = c.config_id AND NOT trunc), 0)
             FROM tools.config c
             JOIN targets USING (target)
-            CROSS JOIN new_run
+            CROSS JOIN new_stage
         RETURNING job_id, config_id
     )
     SELECT format('CALL tools.copy(%s);', job_id), target
@@ -175,13 +175,13 @@ LANGUAGE SQL AS $$
       ORDER BY priority, job_id;
 $$;
 
--- "report" view returns the state of the last run for each relation
+-- "report" view returns the state of the last stage for each relation
 -- with a special column "rate" that shows the number of rows per second
 CREATE OR REPLACE VIEW tools.report AS
-SELECT r.run_id, c.target, min(j.ts) job_start, min(j.state) state,
+SELECT r.stage_id, c.target, min(j.ts) job_start, min(j.state) state,
        sum(j.rows) rows, max(j.elapsed) elapsed,
        sum(round(j.rows / extract(epoch from j.elapsed), 2)) AS rate
   FROM tools.job j
   JOIN tools.config c USING (config_id)
-  JOIN tools.run r USING (run_id)
- GROUP BY r.run_id, c.target;
+  JOIN tools.stage r USING (stage_id)
+ GROUP BY r.stage_id, c.target;

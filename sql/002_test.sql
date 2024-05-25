@@ -16,8 +16,8 @@ CALL copy(7);
 -- copy(6) should succeed
 CALL copy(6);
 
-SELECT run_id, job_id, config_id, lastseq, rows, state
-  FROM job WHERE run_id = 2;
+SELECT stage_id, job_id, config_id, lastseq, rows, state
+  FROM job WHERE stage_id = 2;
 
-SELECT run_id, target, rows, state
-  FROM report WHERE run_id = 2 ORDER BY target;
+SELECT stage_id, target, rows, state
+  FROM report WHERE stage_id = 2 ORDER BY target;

@@ -5,11 +5,11 @@ SELECT target, statement FROM plan('{public.t1}');
  public.t1 | CALL tools.copy(7);
 (1 row)
 
-SELECT run_id, job_id, config_id, lastseq, rows, state
-  FROM job WHERE run_id = 3;
- run_id | job_id | config_id | lastseq | rows |  state  
---------+--------+-----------+---------+------+---------
-      3 |      7 |         1 |       0 |    0 | pending
+SELECT stage_id, job_id, config_id, lastseq, rows, state
+  FROM job WHERE stage_id = 3;
+ stage_id | job_id | config_id | lastseq | rows |  state  
+----------+--------+-----------+---------+------+---------
+        3 |      7 |         1 |       0 |    0 | pending
 (1 row)
 
 -- Should return all jobs
@@ -21,13 +21,13 @@ SELECT target, statement FROM plan();
  public.t1 | CALL tools.copy(8);
 (3 rows)
 
-SELECT run_id, job_id, config_id, lastseq, rows, state
-  FROM job WHERE run_id = 4;
- run_id | job_id | config_id | lastseq | rows |  state  
---------+--------+-----------+---------+------+---------
-      4 |      8 |         1 |       0 |    0 | pending
-      4 |      9 |         2 |    2000 |    0 | pending
-      4 |     10 |         3 |    1999 |    0 | pending
+SELECT stage_id, job_id, config_id, lastseq, rows, state
+  FROM job WHERE stage_id = 4;
+ stage_id | job_id | config_id | lastseq | rows |  state  
+----------+--------+-----------+---------+------+---------
+        4 |      8 |         1 |       0 |    0 | pending
+        4 |      9 |         2 |    2000 |    0 | pending
+        4 |     10 |         3 |    1999 |    0 | pending
 (3 rows)
 
 -- Should fail as the table does not exist

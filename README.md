@@ -6,9 +6,9 @@ same columns in no particular order.
 
 Tools provide:
 
-- a convenient way to build new **runs** based on configuration, composed by
+- a convenient way to build new **stages** based on configuration, composed by
   jobs attached to every configured source-to-table.
-- a **report** view that aggregate **job** status per **run**
+- a **report** view that aggregate **job** status per **stage**
 - a variety of options in the central **config** table
 
 Tools have been designed to be used by a multiple processus orchestrator, as
@@ -34,7 +34,7 @@ subsets.
   Composite columns are not supported.
 
 * `priority` (type `numeric`): Sort the job list in ascendent order for a new
-  **run**.
+  **stage**.
 
 * `condition` (type `text`): Applies a `WHERE` condition to the `SELECT`
   statement used during data transfer. Usefull for split data in distinct
@@ -45,13 +45,13 @@ subsets.
   completion.
 
 * `trunc` (type `boolean`): If set to `true`, the target table will be truncated
-  before start a **job** of a new **run**.
+  before start a **job** of a new **stage**.
 
 Examples:
 
 ```sql
--- t1 will be copied in a single operation and must be truncated at new run
-INSERT INTO tools.config
+-- t1 will be copied in a single operation and must be truncated at new stage
+INSERT INTO fdw.config
   (source, target, pkey, priority, condition, batchsize, trunc)
 VALUES
   ('source.t1', 'public.t1', 'id', 100, null, null, true);
@@ -68,13 +68,13 @@ VALUES
 
 **plan(targets text[])** function
 
-* `plan()` prepares a new run by creating `run` and `job` records and returns a
+* `plan()` prepares a new stage by creating `stage` and `job` records and returns a
   set of `CALL copy()` statements in order of configured priority.
 
 * `targets` parameter is an array of target relation names used as filter. If
   empty, all relations in the `config` table are used as targets.
 
-* A table with `trunc` option will be truncated at the beginning of a new run.
+* A table with `trunc` option will be truncated at the beginning of a new stage.
 
 **copy(job_id bigint)** procedure
 
@@ -102,7 +102,7 @@ VALUES
 
 **report** view
 
-* `run_id` (type `bigint`): Identifier used to filter a specific run.
+* `stage_id` (type `bigint`): Identifier used to filter a specific stage.
 
 * `target` (type `regclass`): Where the data goes to, relative to current
   `search_path`.
@@ -119,16 +119,16 @@ VALUES
 * `rate` (type `numeric`): Calculated rate (rows per second) attached to a jobs,
   based on elapsed time and rows processed.
 
-**run** table
+**stage** table
 
-* `run_id` (type `bigint`): A unique identifier spawned by calling `plan()`
+* `stage_id` (type `bigint`): A unique identifier spawned by calling `plan()`
   function.
 
-* `ts` (type `timestamp`): Creation time of the run.
+* `ts` (type `timestamp`): Creation time of the stage.
 
 **job** table
 
-* `run_id` (type `bigint`): Identifier of the run that job belongs to.
+* `stage_id` (type `bigint`): Identifier of the stage that job belongs to.
 
 * `job_id` (type `bigint`): A unique identifier to manipulate the job with
   `copy()` procedure.

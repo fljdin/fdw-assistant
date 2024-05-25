@@ -12,23 +12,23 @@ SELECT * FROM config;
 SELECT target, statement FROM plan();
 
 -- "report" view shows the aggregated state for each target table
-SELECT * FROM report WHERE run_id = 1;
+SELECT * FROM report WHERE stage_id = 1;
 
--- copy(1) should truncate public.t1 as it is a new run
+-- copy(1) should truncate public.t1 as it is a new stage
 CALL copy(1);
 
 -- copy(1) should do nothing more because there is no new data in source.t1
 CALL copy(1);
 
-SELECT run_id, job_id, config_id, lastseq, rows, state
-  FROM job WHERE run_id = 1 ORDER BY job_id;
+SELECT stage_id, job_id, config_id, lastseq, rows, state
+  FROM job WHERE stage_id = 1 ORDER BY job_id;
 
 -- copy(2) and copy(3) should share an half of the data from source.t2
 CALL copy(2);
 CALL copy(3);
 
-SELECT run_id, job_id, config_id, lastseq, rows, state
-  FROM job WHERE run_id = 1 ORDER BY job_id;
+SELECT stage_id, job_id, config_id, lastseq, rows, state
+  FROM job WHERE stage_id = 1 ORDER BY job_id;
 
 INSERT INTO source.t2 (id, age, name)
     SELECT i, i, 'name' || i FROM generate_series(1001, 2000) i;
@@ -37,8 +37,8 @@ INSERT INTO source.t2 (id, age, name)
 CALL copy(2);
 CALL copy(3);
 
-SELECT run_id, job_id, config_id, lastseq, rows, state
-  FROM job WHERE run_id = 1 ORDER BY job_id;
+SELECT stage_id, job_id, config_id, lastseq, rows, state
+  FROM job WHERE stage_id = 1 ORDER BY job_id;
 
-SELECT run_id, target, rows, state
-  FROM report WHERE run_id = 1 ORDER BY target;
+SELECT stage_id, target, rows, state
+  FROM report WHERE stage_id = 1 ORDER BY target;
