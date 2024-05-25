@@ -14,8 +14,8 @@ CALL start(5);
 -- start(6) should succeed
 CALL start(6);
 
-SELECT run_id, job_id, config_id, lastseq, rows, state 
+SELECT run_id, job_id, config_id, lastseq, rows, state
   FROM job WHERE run_id = 2;
 
-SELECT run_id, target, rows, state 
+SELECT run_id, target, rows, state
   FROM report WHERE run_id = 2 ORDER BY target;

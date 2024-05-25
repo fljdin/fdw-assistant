@@ -7,7 +7,7 @@ SELECT target, statement FROM run();
  public.t1 | CALL tools.start(7);
 (1 row)
 
-SELECT run_id, job_id, config_id, lastseq, rows, state 
+SELECT run_id, job_id, config_id, lastseq, rows, state
   FROM job WHERE run_id = 3;
  run_id | job_id | config_id | lastseq | rows |  state  
 --------+--------+-----------+---------+------+---------
@@ -25,7 +25,7 @@ SELECT target, statement FROM run();
  public.t2 | CALL tools.start(10);
 (3 rows)
 
-SELECT run_id, job_id, config_id, lastseq, rows, state 
+SELECT run_id, job_id, config_id, lastseq, rows, state
   FROM job WHERE run_id = 4;
  run_id | job_id | config_id | lastseq | rows |  state  
 --------+--------+-----------+---------+------+---------

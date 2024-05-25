@@ -21,7 +21,7 @@ SELECT target, statement FROM run();
  public.t2 | CALL tools.start(3);
 (3 rows)
 
--- "report" view shows the aggregated state for each target table 
+-- "report" view shows the aggregated state for each target table
 SELECT * FROM report WHERE run_id = 1;
  run_id |  target   | job_start |  state  | rows | elapsed | rate 
 --------+-----------+-----------+---------+------+---------+------
@@ -34,7 +34,7 @@ CALL start(1);
 psql:sql/001_test.sql:17: NOTICE:  Executing: TRUNCATE public.t1
 psql:sql/001_test.sql:17: NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0  ORDER BY id 
 CALL
-SELECT run_id, job_id, config_id, lastseq, rows, state 
+SELECT run_id, job_id, config_id, lastseq, rows, state
   FROM job WHERE run_id = 1 ORDER BY job_id;
  run_id | job_id | config_id | lastseq | rows |   state   
 --------+--------+-----------+---------+------+-----------
@@ -56,7 +56,7 @@ psql:sql/001_test.sql:24: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, n
 psql:sql/001_test.sql:24: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 799 AND id % 2 = 1 ORDER BY id LIMIT 200
 psql:sql/001_test.sql:24: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 999 AND id % 2 = 1 ORDER BY id LIMIT 200
 CALL
-SELECT run_id, job_id, config_id, lastseq, rows, state 
+SELECT run_id, job_id, config_id, lastseq, rows, state
   FROM job WHERE run_id = 1 ORDER BY job_id;
  run_id | job_id | config_id | lastseq | rows |   state   
 --------+--------+-----------+---------+------+-----------
@@ -65,7 +65,7 @@ SELECT run_id, job_id, config_id, lastseq, rows, state
       1 |      3 |         3 |     999 |  500 | completed
 (3 rows)
 
-INSERT INTO source.t2 (id, age, name) 
+INSERT INTO source.t2 (id, age, name)
     SELECT i, i, 'name' || i FROM generate_series(1001, 2000) i;
 INSERT 0 1000
 -- start(2) and start(3) should continue from where they left
@@ -82,7 +82,7 @@ psql:sql/001_test.sql:35: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, n
 psql:sql/001_test.sql:35: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1799 AND id % 2 = 1 ORDER BY id LIMIT 200
 psql:sql/001_test.sql:35: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1999 AND id % 2 = 1 ORDER BY id LIMIT 200
 CALL
-SELECT run_id, job_id, config_id, lastseq, rows, state 
+SELECT run_id, job_id, config_id, lastseq, rows, state
   FROM job WHERE run_id = 1 ORDER BY job_id;
  run_id | job_id | config_id | lastseq | rows |   state   
 --------+--------+-----------+---------+------+-----------
@@ -91,7 +91,7 @@ SELECT run_id, job_id, config_id, lastseq, rows, state
       1 |      3 |         3 |    1999 | 1000 | completed
 (3 rows)
 
-SELECT run_id, target, rows, state 
+SELECT run_id, target, rows, state
   FROM report WHERE run_id = 1 ORDER BY target;
  run_id |  target   | rows |   state   
 --------+-----------+------+-----------
