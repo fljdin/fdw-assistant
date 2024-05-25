@@ -66,10 +66,10 @@ VALUES
 
 ## API Usage
 
-**run()** function
+**run(targets text[])** function
 
 * `run()` prepares a new run by creating `run` and `job` records and returns a
-  set of `CALL start()` statements in order of configured priority
+  set of `CALL start()` statements in order of configured priority.
 
 * `targets` parameter is an array of target relation names used as filter. If
   empty, all relations in the `config` table are used as targets.

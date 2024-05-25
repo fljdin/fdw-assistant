@@ -1,9 +1,7 @@
-SET tools.targets = 'public.withkeywords';
-SET
 INSERT INTO config (source, target, pkey, condition, batchsize, trunc) VALUES
     ('source.withkeywords', 'public.withkeywords', 'id', null, null, true);
 INSERT 0 1
-SELECT target, statement FROM run();
+SELECT target, statement FROM run('{public.withkeywords}');
        target        |       statement       
 ---------------------+-----------------------
  public.withkeywords | CALL tools.start(11);

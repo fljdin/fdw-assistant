@@ -3,9 +3,6 @@
 CREATE SCHEMA IF NOT EXISTS tools;
 SET search_path = tools;
 
--- "tools.targets" setting is used to filter the source relations
-ALTER DATABASE :DBNAME SET tools.targets TO '';
-
 -- "state" enum represents the state of a job
 DO $$
 BEGIN
@@ -146,16 +143,16 @@ LANGUAGE SQL AS $$
 $$;
 
 -- "run" function inserts a new run record and returns the statements to execute
--- "tools.targets" setting is used to filter the target relations
-CREATE OR REPLACE FUNCTION tools.run()
+-- "targets" parameter is used to filter the target relations
+CREATE OR REPLACE FUNCTION tools.run(targets text[] DEFAULT '{}'::text[])
 RETURNS TABLE (statement text, target regclass)
 LANGUAGE SQL AS $$
     WITH targets AS (
         SELECT s::regclass AS target
-        FROM string_to_table(current_setting('tools.targets'),',') AS t(s)
+        FROM unnest(targets) s
         UNION
         SELECT DISTINCT target FROM tools.config
-        WHERE current_setting('tools.targets') = ''
+        WHERE cardinality(targets) = 0
     ), new_run AS (
         INSERT INTO tools.run DEFAULT VALUES
         RETURNING run_id

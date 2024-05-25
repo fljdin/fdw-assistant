@@ -38,6 +38,12 @@ CREATE TABLE public.withkeywords (
     "limit" integer not null
 );
 
+-- "dummy" is a table that exist but is not used in any job
+CREATE TABLE public.dummy (
+    id serial primary key,
+    name text not null
+);
+
 INSERT INTO source.t1 (id, name) 
     SELECT i, 'name' || i FROM generate_series(1, 100) i;
 
