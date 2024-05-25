@@ -14,7 +14,10 @@ SELECT target, statement FROM run();
 -- "report" view shows the aggregated state for each target table
 SELECT * FROM report WHERE run_id = 1;
 
--- start(1) should truncate public.t1 as configured
+-- start(1) should truncate public.t1 as it is a new run
+CALL start(1);
+
+-- start(1) should do nothing more because there is no new data in source.t1
 CALL start(1);
 
 SELECT run_id, job_id, config_id, lastseq, rows, state
@@ -31,7 +34,6 @@ INSERT INTO source.t2 (id, age, name)
     SELECT i, i, 'name' || i FROM generate_series(1001, 2000) i;
 
 -- start(2) and start(3) should continue from where they left
--- whithout truncating the target table
 CALL start(2);
 CALL start(3);
 

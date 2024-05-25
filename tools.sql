@@ -67,16 +67,15 @@ BEGIN
         RAISE EXCEPTION 'Job % not found', p_id;
     END IF;
 
-    IF r.trunc THEN
+    -- Truncate the target relation if option is set
+    -- and the job has not been started yet
+    IF r.trunc AND r.ts IS NULL THEN
         stmt := format('TRUNCATE %s', r.target);
-        r.lastseq := 0;
-        r.elapsed := '0';
-        r.rows := 0;
-
         raise notice 'Executing: %', stmt;
         EXECUTE stmt;
     END IF;
 
+    -- Update job record on start
     UPDATE tools.job
         SET state = 'running', ts = COALESCE(ts, clock_timestamp())
         WHERE job_id = r.job_id;
@@ -109,7 +108,7 @@ BEGIN
         END;
         EXIT WHEN v_rows = 0;
 
-        -- Update job record
+        -- Update job record at the end of each batch
         v_elapsed := clock_timestamp() - v_start;
         r.elapsed := COALESCE(r.elapsed, '0') + v_elapsed;
         r.rows := r.rows + v_rows;
@@ -122,7 +121,10 @@ BEGIN
         EXIT WHEN r.batchsize IS NULL;
     END LOOP;
 
-    UPDATE tools.job SET state = r.state WHERE job_id = r.job_id;
+    -- Update job record on completion
+    UPDATE tools.job 
+        SET state = r.state 
+        WHERE job_id = r.job_id;
     COMMIT;
 
     IF r.state = 'failed' THEN
@@ -159,6 +161,8 @@ LANGUAGE SQL AS $$
         RETURNING run_id
     ), new_jobs AS (
         INSERT INTO tools.job (run_id, config_id, lastseq)
+            -- Get the last sequence number from the last run
+            -- if target may not be truncated. Otherwise, use 0
             SELECT run_id, config_id, COALESCE(
                 (SELECT max(lastseq) FROM tools.job
                    JOIN tools.config USING (config_id)
