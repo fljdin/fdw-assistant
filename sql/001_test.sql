@@ -25,4 +25,4 @@ INSERT INTO source.t2 (id, name)
 CALL start(2);
 CALL start(3);
 
-SELECT run_id, job_id, config_id, lastseq, rows FROM job;
+SELECT run_id, relname, rows FROM report ORDER BY relname;
