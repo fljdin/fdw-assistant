@@ -10,7 +10,7 @@ ALTER DATABASE :DBNAME SET tools.targets TO '';
 DO $$
 BEGIN
 IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'state') THEN
-    CREATE TYPE state AS ENUM ('pending', 'running', 'failed', 'completed');
+    CREATE TYPE state AS ENUM ('running', 'failed', 'pending', 'completed');
 END IF;
 END$$;
 
