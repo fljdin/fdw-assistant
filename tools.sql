@@ -3,6 +3,9 @@
 CREATE SCHEMA IF NOT EXISTS tools;
 SET search_path = tools;
 
+-- "state" enum represents the state of a job
+CREATE TYPE state AS ENUM ('pending', 'running', 'failed', 'completed');
+
 -- "config" table represents the configuration of relation
 CREATE TABLE IF NOT EXISTS config (
     config_id bigint generated always as identity primary key,
@@ -29,7 +32,7 @@ CREATE TABLE IF NOT EXISTS job (
     rows bigint not null default 0,
     elapsed interval not null default '0'::interval,
     ts timestamp,
-    completed boolean,
+    state state not null default 'pending',
     PRIMARY KEY (run_id, job_id)
 );
 
@@ -39,14 +42,15 @@ CREATE OR REPLACE PROCEDURE tools.start(p_id bigint)
 LANGUAGE plpgsql AS $$
 DECLARE
     r record;
-    v_start timestamp;
-    v_elapsed interval;
-    v_rows bigint;
     stmt text;
+    v_ctx text;
+    v_elapsed interval;
+    v_message text;
+    v_rows bigint;
+    v_start timestamp;
 BEGIN
     SELECT * INTO r
-        FROM tools.job
-        JOIN tools.config USING (config_id)
+        FROM tools.job JOIN tools.config USING (config_id)
         WHERE job_id = p_id;
     IF r.trunc THEN
         stmt := format('TRUNCATE %s', r.target);
@@ -57,6 +61,11 @@ BEGIN
         raise notice 'Executing: %', stmt;
         EXECUTE stmt;
     END IF;
+
+    v_start := clock_timestamp();
+    UPDATE tools.job 
+        SET state = 'running', ts = COALESCE(ts, v_start)
+        WHERE job_id = r.job_id;
 
     LOOP
         -- Build INSERT statement
@@ -72,13 +81,16 @@ BEGIN
         );
 
         -- Execute INSERT statement
-        v_start := clock_timestamp();
-
-        IF r.ts IS NULL THEN
-            UPDATE tools.job SET ts = v_start WHERE job_id = r.job_id;
-        END IF;
-
-        EXECUTE stmt INTO r.lastseq, v_rows;
+        BEGIN
+            EXECUTE stmt INTO r.lastseq, v_rows;
+            r.state := 'completed';
+        EXCEPTION WHEN OTHERS THEN
+            r.state := 'failed';
+            GET STACKED DIAGNOSTICS
+                v_ctx     = PG_EXCEPTION_CONTEXT,
+                v_message = MESSAGE_TEXT;
+            EXIT;
+        END;
         EXIT WHEN v_rows = 0;
 
         -- Update job record
@@ -87,14 +99,18 @@ BEGIN
         r.rows := r.rows + v_rows;
 
         UPDATE tools.job
-           SET lastseq = r.lastseq, rows = r.rows, elapsed = r.elapsed
-         WHERE job_id = r.job_id;
+            SET lastseq = r.lastseq, rows = r.rows, elapsed = r.elapsed
+            WHERE job_id = r.job_id;
 
-        COMMIT;
         EXIT WHEN r.batchsize IS NULL;
     END LOOP;
 
-    UPDATE tools.job SET completed = true WHERE job_id = r.job_id;
+    UPDATE tools.job SET state = r.state WHERE job_id = r.job_id;
+    COMMIT;
+
+    IF r.state = 'failed' THEN
+        RAISE E'%\nCONTEXT:  %', v_message, v_ctx;
+    END IF;
 END;
 $$;
 
@@ -133,13 +149,10 @@ $$;
 -- "report" view returns the state of the last run for each relation
 -- with a special column "rate" that shows the number of rows per second
 CREATE OR REPLACE VIEW tools.report AS
-SELECT r.run_id, c.target, min(j.ts) job_start,
-       CASE WHEN bool_and(j.ts IS NOT NULL) AND bool_and(j.completed)
-            THEN true ELSE false END AS completed,
+SELECT r.run_id, c.target, min(j.ts) job_start, min(j.state) state,
        sum(j.rows) rows, max(j.elapsed) elapsed,
        sum(round(j.rows / extract(epoch from j.elapsed), 2)) AS rate
   FROM tools.job j
   JOIN tools.config c USING (config_id)
   JOIN tools.run r USING (run_id)
- WHERE elapsed > '0'::interval
  GROUP BY r.run_id, c.target;

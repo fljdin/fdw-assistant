@@ -10,21 +10,29 @@ SELECT * FROM config;
 
 SELECT target, statement FROM run();
 
+-- start(1) should truncate public.t1 as configured
 CALL start(1);
 
-SELECT run_id, job_id, config_id, lastseq, rows, completed FROM job;
+SELECT run_id, job_id, config_id, lastseq, rows, state 
+  FROM job WHERE run_id = 1 ORDER BY job_id;
 
+-- start(2) and start(3) should share an half of the data from source.t2
 CALL start(2);
 CALL start(3);
 
-SELECT run_id, job_id, config_id, lastseq, rows, completed FROM job;
+SELECT run_id, job_id, config_id, lastseq, rows, state 
+  FROM job WHERE run_id = 1 ORDER BY job_id;
 
-INSERT INTO source.t2 (id, name) 
-    SELECT i, 'name' || i FROM generate_series(1001, 2000) i;
+INSERT INTO source.t2 (id, age, name) 
+    SELECT i, i, 'name' || i FROM generate_series(1001, 2000) i;
 
+-- start(2) and start(3) should continue from where they left
+-- whithout truncating the target table
 CALL start(2);
 CALL start(3);
 
-SELECT run_id, job_id, config_id, lastseq, rows, completed FROM job;
+SELECT run_id, job_id, config_id, lastseq, rows, state 
+  FROM job WHERE run_id = 1 ORDER BY job_id;
 
-SELECT run_id, target, rows, completed FROM report ORDER BY target;
+SELECT run_id, target, rows, state 
+  FROM report WHERE run_id = 1 ORDER BY target;
