@@ -142,9 +142,9 @@ LANGUAGE SQL AS $$
      GROUP BY p_target;
 $$;
 
--- "run" function inserts a new run record and returns the statements to execute
+-- "plan" function inserts a new run record and returns the statements to execute
 -- "targets" parameter is used to filter the target relations
-CREATE OR REPLACE FUNCTION tools.run(targets text[] DEFAULT '{}'::text[])
+CREATE OR REPLACE FUNCTION tools.plan(targets text[] DEFAULT '{}'::text[])
 RETURNS TABLE (statement text, target regclass)
 LANGUAGE SQL AS $$
     WITH targets AS (

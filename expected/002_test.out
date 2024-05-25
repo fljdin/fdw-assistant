@@ -2,7 +2,7 @@ UPDATE source.t1 SET name = null WHERE id = 1;
 UPDATE 1
 INSERT INTO source.t2 (id, age, name) SELECT 2002, 2^(16-1), 'foo';
 INSERT 0 1
-SELECT target, statement FROM run();
+SELECT target, statement FROM plan();
   target   |      statement       
 -----------+----------------------
  public.t2 | CALL tools.start(5);

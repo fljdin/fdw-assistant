@@ -1,5 +1,5 @@
 -- Should return a single job for public.t1
-SELECT target, statement FROM run('{public.t1}');
+SELECT target, statement FROM plan('{public.t1}');
   target   |      statement       
 -----------+----------------------
  public.t1 | CALL tools.start(7);
@@ -13,7 +13,7 @@ SELECT run_id, job_id, config_id, lastseq, rows, state
 (1 row)
 
 -- Should return all jobs
-SELECT target, statement FROM run();
+SELECT target, statement FROM plan();
   target   |       statement       
 -----------+-----------------------
  public.t2 | CALL tools.start(9);
@@ -31,11 +31,11 @@ SELECT run_id, job_id, config_id, lastseq, rows, state
 (3 rows)
 
 -- Should fail as the table does not exist
-SELECT target, statement FROM run('{public.foo}');
+SELECT target, statement FROM plan('{public.foo}');
 ERROR:  relation "public.foo" does not exist
-CONTEXT:  SQL function "run" statement 1
+CONTEXT:  SQL function "plan" statement 1
 -- Should return an empty set as the table has no configuration
-SELECT target, statement FROM run('{public.dummy}');
+SELECT target, statement FROM plan('{public.dummy}');
  target | statement 
 --------+-----------
 (0 rows)

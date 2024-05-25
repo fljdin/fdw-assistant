@@ -2,7 +2,7 @@
 UPDATE source.t1 SET name = null WHERE id = 1;
 INSERT INTO source.t2 (id, age, name) SELECT 2002, 2^(16-1), 'foo';
 
-SELECT target, statement FROM run();
+SELECT target, statement FROM plan();
 
 -- start(4) should fail because of the NOT NULL constraint
 CALL start(4);

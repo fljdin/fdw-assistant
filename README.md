@@ -66,9 +66,9 @@ VALUES
 
 ## API Usage
 
-**run(targets text[])** function
+**plan(targets text[])** function
 
-* `run()` prepares a new run by creating `run` and `job` records and returns a
+* `plan()` prepares a new run by creating `run` and `job` records and returns a
   set of `CALL start()` statements in order of configured priority.
 
 * `targets` parameter is an array of target relation names used as filter. If
@@ -95,7 +95,7 @@ VALUES
 * `failed`: a error has been raised, the job stopped in the middle of a batch
   and rollbacked his current task.
 
-* `pending`: a job has been prepared by the `run()` procedure but the `start()`
+* `pending`: a job has been prepared by the `plan()` procedure but the `start()`
   has not been called yet.
 
 * `completed`: a job has processed the data transfert successfully.
@@ -121,7 +121,7 @@ VALUES
 
 **run** table
 
-* `run_id` (type `bigint`): A unique identifier spawned by calling `run()`
+* `run_id` (type `bigint`): A unique identifier spawned by calling `plan()`
   function.
 
 * `ts` (type `timestamp`): Creation time of the run.
