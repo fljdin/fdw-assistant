@@ -12,12 +12,12 @@ SELECT target, statement FROM run();
 
 CALL start(1);
 
-SELECT run_id, job_id, config_id, lastseq, rows FROM job;
+SELECT run_id, job_id, config_id, lastseq, rows, completed FROM job;
 
 CALL start(2);
 CALL start(3);
 
-SELECT run_id, job_id, config_id, lastseq, rows FROM job;
+SELECT run_id, job_id, config_id, lastseq, rows, completed FROM job;
 
 INSERT INTO source.t2 (id, name) 
     SELECT i, 'name' || i FROM generate_series(1001, 2000) i;
@@ -25,4 +25,6 @@ INSERT INTO source.t2 (id, name)
 CALL start(2);
 CALL start(3);
 
-SELECT run_id, target, rows FROM report ORDER BY target;
+SELECT run_id, job_id, config_id, lastseq, rows, completed FROM job;
+
+SELECT run_id, target, rows, completed FROM report ORDER BY target;

@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS job (
     rows bigint not null default 0,
     elapsed interval not null default '0'::interval,
     ts timestamp,
+    completed boolean,
     PRIMARY KEY (run_id, job_id)
 );
 
@@ -92,6 +93,8 @@ BEGIN
         COMMIT;
         EXIT WHEN r.batchsize IS NULL;
     END LOOP;
+
+    UPDATE tools.job SET completed = true WHERE job_id = r.job_id;
 END;
 $$;
 
@@ -130,7 +133,10 @@ $$;
 -- "report" view returns the state of the last run for each relation
 -- with a special column "rate" that shows the number of rows per second
 CREATE OR REPLACE VIEW tools.report AS
-SELECT r.run_id, c.target, min(j.ts) job_start, sum(j.rows) rows, max(j.elapsed) elapsed,
+SELECT r.run_id, c.target, min(j.ts) job_start,
+       CASE WHEN bool_and(j.ts IS NOT NULL) AND bool_and(j.completed)
+            THEN true ELSE false END AS completed,
+       sum(j.rows) rows, max(j.elapsed) elapsed,
        sum(round(j.rows / extract(epoch from j.elapsed), 2)) AS rate
   FROM tools.job j
   JOIN tools.config c USING (config_id)
