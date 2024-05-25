@@ -10,6 +10,9 @@ CALL start(4);
 -- start(5) should fail because of out of range value
 CALL start(5);
 
+-- start(7) should fail because job_id does not exist
+CALL start(7);
+
 -- start(6) should succeed
 CALL start(6);
 

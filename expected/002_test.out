@@ -25,9 +25,13 @@ psql:sql/002_test.sql:11: ERROR:  smallint out of range
 CONTEXT:  SQL statement "WITH inserted AS (INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 2000 AND id % 2 = 0 ORDER BY id LIMIT 200 RETURNING id) SELECT max(id) AS lastseq, count(*) AS rows FROM inserted"
 PL/pgSQL function start(bigint) line 50 at EXECUTE
 CONTEXT:  PL/pgSQL function start(bigint) line 81 at RAISE
+-- start(7) should fail because job_id does not exist
+CALL start(7);
+psql:sql/002_test.sql:14: ERROR:  Job 7 not found
+CONTEXT:  PL/pgSQL function start(bigint) line 17 at RAISE
 -- start(6) should succeed
 CALL start(6);
-psql:sql/002_test.sql:14: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1999 AND id % 2 = 1 ORDER BY id LIMIT 200
+psql:sql/002_test.sql:17: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1999 AND id % 2 = 1 ORDER BY id LIMIT 200
 CALL
 SELECT run_id, job_id, config_id, lastseq, rows, state
   FROM job WHERE run_id = 2;
