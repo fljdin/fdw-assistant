@@ -1,0 +1,22 @@
+-- updating "config" table do not affect the previous jobs
+UPDATE config SET parts = 1;
+UPDATE 4
+-- we want to plan the next stage with one single job per target copy
+SELECT target, invocation FROM plan('{public.t1, public.t2, public.t3}');
+  target   |     invocation     
+-----------+--------------------
+ public.t2 | CALL fdw.copy(18);
+ public.t1 | CALL fdw.copy(19);
+ public.t3 | CALL fdw.copy(20);
+(3 rows)
+
+-- stage #1 had 5 jobs, stage #8 gets 3 jobs
+SELECT stage_id, count(*) jobs, count(distinct target) targets
+FROM job WHERE stage_id IN (1, 8)
+GROUP BY stage_id;
+ stage_id | jobs | targets 
+----------+------+---------
+        1 |    5 |       3
+        8 |    3 |       3
+(2 rows)
+
