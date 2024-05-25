@@ -1,13 +1,14 @@
 
-INSERT INTO tools.config (source, target, pkey, condition, batchsize, trunc) VALUES
+INSERT INTO tools.config (source, target, pkey, priority, condition, batchsize, trunc) VALUES
 -- t1 will be copied in a single operation
-    ('source.t1', 'public.t1', 'id', null, null, true),
+    ('source.t1', 'public.t1', 'id', 100, null, null, true),
 -- t2 will be dispatched to two jobs, each will insert data with a batch size of 200
-    ('source.t2', 'public.t2', 'id', 'id % 2 = 0', 200, false),
-    ('source.t2', 'public.t2', 'id', 'id % 2 = 1', 200, false);
+    ('source.t2', 'public.t2', 'id', 1, 'id % 2 = 0', 200, false),
+    ('source.t2', 'public.t2', 'id', 1, 'id % 2 = 1', 200, false);
 
 SELECT * FROM config;
 
+-- "run" must order the jobs by priority (lower first)
 SELECT target, statement FROM run();
 
 -- "report" view shows the aggregated state for each target table

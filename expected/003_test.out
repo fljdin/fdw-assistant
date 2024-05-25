@@ -20,9 +20,9 @@ RESET
 SELECT target, statement FROM run();
   target   |       statement       
 -----------+-----------------------
- public.t1 | CALL tools.start(8);
  public.t2 | CALL tools.start(9);
  public.t2 | CALL tools.start(10);
+ public.t1 | CALL tools.start(8);
 (3 rows)
 
 SELECT run_id, job_id, config_id, lastseq, rows, state

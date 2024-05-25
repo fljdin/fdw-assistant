@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS config (
     source regclass not null,
     target regclass not null,
     pkey text not null,
+    priority numeric not null default 1,
     condition text,
     batchsize integer,
     trunc boolean not null default true
@@ -169,7 +170,8 @@ LANGUAGE SQL AS $$
     )
     SELECT format('CALL tools.start(%s);', job_id), target
       FROM new_jobs
-      JOIN tools.config USING (config_id);
+      JOIN tools.config USING (config_id)
+      ORDER BY priority, job_id;
 $$;
 
 -- "report" view returns the state of the last run for each relation

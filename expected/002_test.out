@@ -5,9 +5,9 @@ INSERT 0 1
 SELECT target, statement FROM run();
   target   |      statement       
 -----------+----------------------
- public.t1 | CALL tools.start(4);
  public.t2 | CALL tools.start(5);
  public.t2 | CALL tools.start(6);
+ public.t1 | CALL tools.start(4);
 (3 rows)
 
 -- start(4) should fail because of the NOT NULL constraint
