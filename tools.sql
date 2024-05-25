@@ -60,7 +60,7 @@ BEGIN
     LOOP
         -- Build INSERT statement
         SELECT statement INTO stmt FROM tools.extract(r.relname, r.source);
-        stmt := format('INSERT INTO %1$I %2$s WHERE %3$I > %4$s %5$s ORDER BY %3$I %6$s',
+        stmt := format('INSERT INTO %1$s %2$s WHERE %3$s > %4$s %5$s ORDER BY %3$s %6$s',
             r.relname, stmt, r.pkey, r.lastseq,
             CASE WHEN r.condition IS NOT NULL THEN format('AND %s', r.condition) ELSE '' END,
             CASE WHEN r.batchsize IS NOT NULL THEN format('LIMIT %s', r.batchsize) ELSE '' END
@@ -100,7 +100,7 @@ $$;
 CREATE OR REPLACE FUNCTION tools.extract(p_relname regclass, p_source regclass)
 RETURNS TABLE (statement text)
 LANGUAGE SQL AS $$
-    SELECT format('SELECT %s FROM %s', string_agg(format('%I', attname), ', '), p_source)
+    SELECT format('SELECT %s FROM %s', string_agg(format('%s', attname), ', '), p_source)
       FROM pg_attribute
      WHERE attrelid = p_relname
        AND attnum > 0 AND NOT attisdropped

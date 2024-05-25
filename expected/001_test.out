@@ -1,0 +1,78 @@
+INSERT INTO tools.config (relname, source, pkey, condition, batchsize, trunc) VALUES
+-- t1 will be copied in a single operation
+    ('public.t1', 'source.t1', 'id', null, null, true),
+-- t2 will be dispatched to two jobs, each will insert data with a batch size of 200
+    ('public.t2', 'source.t2', 'id', 'id % 2 = 0', 200, false),
+    ('public.t2', 'source.t2', 'id', 'id % 2 = 1', 200, false);
+INSERT 0 3
+SELECT * FROM config;
+ config_id |  relname  |  source   | pkey | condition  | batchsize | trunc 
+-----------+-----------+-----------+------+------------+-----------+-------
+         1 | public.t1 | source.t1 | id   |            |           | t
+         2 | public.t2 | source.t2 | id   | id % 2 = 0 |       200 | f
+         3 | public.t2 | source.t2 | id   | id % 2 = 1 |       200 | f
+(3 rows)
+
+SELECT relname, statement FROM run();
+  relname  |      statement       
+-----------+----------------------
+ public.t1 | CALL tools.start(1);
+ public.t2 | CALL tools.start(2);
+ public.t2 | CALL tools.start(3);
+(3 rows)
+
+CALL start(1);
+psql:sql/001_test.sql:13: NOTICE:  Executing: TRUNCATE public.t1
+psql:sql/001_test.sql:13: NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0  ORDER BY id 
+CALL
+SELECT run_id, job_id, config_id, lastseq, rows FROM job;
+ run_id | job_id | config_id | lastseq | rows 
+--------+--------+-----------+---------+------
+      1 |      2 |         2 |       0 |    0
+      1 |      3 |         3 |       0 |    0
+      1 |      1 |         1 |     100 |  100
+(3 rows)
+
+CALL start(2);
+psql:sql/001_test.sql:17: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, ts FROM source.t2 WHERE id > 0 AND id % 2 = 0 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:17: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, ts FROM source.t2 WHERE id > 400 AND id % 2 = 0 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:17: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, ts FROM source.t2 WHERE id > 800 AND id % 2 = 0 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:17: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, ts FROM source.t2 WHERE id > 1000 AND id % 2 = 0 ORDER BY id LIMIT 200
+CALL
+CALL start(3);
+psql:sql/001_test.sql:18: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, ts FROM source.t2 WHERE id > 0 AND id % 2 = 1 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:18: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, ts FROM source.t2 WHERE id > 399 AND id % 2 = 1 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:18: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, ts FROM source.t2 WHERE id > 799 AND id % 2 = 1 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:18: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, ts FROM source.t2 WHERE id > 999 AND id % 2 = 1 ORDER BY id LIMIT 200
+CALL
+SELECT run_id, job_id, config_id, lastseq, rows FROM job;
+ run_id | job_id | config_id | lastseq | rows 
+--------+--------+-----------+---------+------
+      1 |      1 |         1 |     100 |  100
+      1 |      2 |         2 |    1000 |  500
+      1 |      3 |         3 |     999 |  500
+(3 rows)
+
+INSERT INTO source.t2 (id, name) 
+    SELECT i, 'name' || i FROM generate_series(1001, 2000) i;
+INSERT 0 1000
+CALL start(2);
+psql:sql/001_test.sql:25: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, ts FROM source.t2 WHERE id > 1000 AND id % 2 = 0 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:25: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, ts FROM source.t2 WHERE id > 1400 AND id % 2 = 0 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:25: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, ts FROM source.t2 WHERE id > 1800 AND id % 2 = 0 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:25: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, ts FROM source.t2 WHERE id > 2000 AND id % 2 = 0 ORDER BY id LIMIT 200
+CALL
+CALL start(3);
+psql:sql/001_test.sql:26: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, ts FROM source.t2 WHERE id > 999 AND id % 2 = 1 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:26: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, ts FROM source.t2 WHERE id > 1399 AND id % 2 = 1 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:26: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, ts FROM source.t2 WHERE id > 1799 AND id % 2 = 1 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:26: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, ts FROM source.t2 WHERE id > 1999 AND id % 2 = 1 ORDER BY id LIMIT 200
+CALL
+SELECT run_id, job_id, config_id, lastseq, rows FROM job;
+ run_id | job_id | config_id | lastseq | rows 
+--------+--------+-----------+---------+------
+      1 |      1 |         1 |     100 |  100
+      1 |      2 |         2 |    2000 | 1000
+      1 |      3 |         3 |    1999 | 1000
+(3 rows)
+

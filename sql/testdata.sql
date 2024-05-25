@@ -15,3 +15,9 @@ CREATE TABLE public.t2 (
     name text,
     ts timestamp default now()
 );
+
+INSERT INTO source.t1 (id, name) 
+    SELECT i, 'name' || i FROM generate_series(1, 100) i;
+
+INSERT INTO source.t2 (id, name)
+    SELECT i, 'name' || i FROM generate_series(1, 1000) i;

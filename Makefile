@@ -1,18 +1,25 @@
-export PGDATABASE=test
-export PGOPTIONS=--client_min_messages=warning
+export PGDATABASE = test
+export PGOPTIONS  = --search_path=tools
+export PSQL_PAGER =
 
-TESTS := $(wildcard test/*_test.sql)
+EXP := $(wildcard expected/*_test.out)
+OUT := $(patsubst expected/%,results/%,$(EXP))
 
 .PHONY: test
-test: $(TESTS)
+test: $(OUT)
 
-env:
+setup:
+	@mkdir -p results
 	@dropdb --if-exists $(PGDATABASE)
 	@createdb
 	@psql -qf tools.sql
-	@psql -qf test/model.sql
-	@psql -qc "CREATE EXTENSION pgtap"
+	@psql -qf sql/testdata.sql
 
-$(TESTS): env
-	@echo "-- Running tests from $@"
-	@psql -qf $@
+results/%_test.out: sql/%_test.sql setup
+	@echo "-- Running tests from $<"
+	@psql -af $< > $@ 2>&1
+	@diff -u expected/$*_test.out $@ || true
+
+clean:
+	rm -rf results
+	dropdb --if-exists $(PGDATABASE)
