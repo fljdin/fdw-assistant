@@ -7,7 +7,12 @@ SET search_path = tools;
 ALTER DATABASE :DBNAME SET tools.targets TO '';
 
 -- "state" enum represents the state of a job
-CREATE TYPE state AS ENUM ('pending', 'running', 'failed', 'completed');
+DO $$
+BEGIN
+IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'state') THEN
+    CREATE TYPE state AS ENUM ('pending', 'running', 'failed', 'completed');
+END IF;
+END$$;
 
 -- "config" table represents the configuration of relation
 CREATE TABLE IF NOT EXISTS config (
