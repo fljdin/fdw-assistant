@@ -1,7 +1,6 @@
 
 UPDATE source.t1 SET name = null WHERE id = 1;
-UPDATE source.t2 SET age = 2^(16-1) WHERE id = 1802;
-TRUNCATE TABLE public.t2;
+INSERT INTO source.t2 (id, age, name) SELECT 2002, 2^(16-1), 'foo';
 
 SELECT target, statement FROM run();
 

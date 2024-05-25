@@ -76,7 +76,7 @@ BEGIN
         EXECUTE stmt;
     END IF;
 
-    UPDATE tools.job 
+    UPDATE tools.job
         SET state = 'running', ts = COALESCE(ts, clock_timestamp())
         WHERE job_id = r.job_id;
     COMMIT;
@@ -147,25 +147,28 @@ $$;
 CREATE OR REPLACE FUNCTION tools.run()
 RETURNS TABLE (statement text, target regclass)
 LANGUAGE SQL AS $$
-    WITH new_run AS (
-        INSERT INTO tools.run DEFAULT VALUES
-        RETURNING run_id
-    ), targets AS (
+    WITH targets AS (
         SELECT s::regclass AS target
         FROM string_to_table(current_setting('tools.targets'),',') AS t(s)
         UNION
         SELECT DISTINCT target FROM tools.config
         WHERE current_setting('tools.targets') = ''
-    ), new_job AS (
-        INSERT INTO tools.job (run_id, config_id)
-            SELECT run_id, config_id
-            FROM tools.config
+    ), new_run AS (
+        INSERT INTO tools.run DEFAULT VALUES
+        RETURNING run_id
+    ), new_jobs AS (
+        INSERT INTO tools.job (run_id, config_id, lastseq)
+            SELECT run_id, config_id, COALESCE(
+                (SELECT max(lastseq) FROM tools.job
+                   JOIN tools.config USING (config_id)
+                  WHERE config_id = c.config_id AND NOT trunc), 0)
+            FROM tools.config c
             JOIN targets USING (target)
             CROSS JOIN new_run
         RETURNING job_id, config_id
     )
     SELECT format('CALL tools.start(%s);', job_id), target
-      FROM new_job
+      FROM new_jobs
       JOIN tools.config USING (config_id);
 $$;
 

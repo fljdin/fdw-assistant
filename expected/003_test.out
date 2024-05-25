@@ -30,7 +30,7 @@ SELECT run_id, job_id, config_id, lastseq, rows, state
  run_id | job_id | config_id | lastseq | rows |  state  
 --------+--------+-----------+---------+------+---------
       4 |      8 |         1 |       0 |    0 | pending
-      4 |      9 |         2 |       0 |    0 | pending
-      4 |     10 |         3 |       0 |    0 | pending
+      4 |      9 |         2 |    2000 |    0 | pending
+      4 |     10 |         3 |    1999 |    0 | pending
 (3 rows)
 

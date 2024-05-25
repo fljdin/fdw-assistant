@@ -1,9 +1,7 @@
 UPDATE source.t1 SET name = null WHERE id = 1;
 UPDATE 1
-UPDATE source.t2 SET age = 2^(16-1) WHERE id = 1802;
-UPDATE 1
-TRUNCATE TABLE public.t2;
-TRUNCATE TABLE
+INSERT INTO source.t2 (id, age, name) SELECT 2002, 2^(16-1), 'foo';
+INSERT 0 1
 SELECT target, statement FROM run();
   target   |      statement       
 -----------+----------------------
@@ -14,39 +12,30 @@ SELECT target, statement FROM run();
 
 -- start(4) should fail because of the NOT NULL constraint
 CALL start(4);
-psql:sql/002_test.sql:9: NOTICE:  Executing: TRUNCATE public.t1
-psql:sql/002_test.sql:9: NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0  ORDER BY id 
-psql:sql/002_test.sql:9: ERROR:  null value in column "name" of relation "t1" violates not-null constraint
+psql:sql/002_test.sql:8: NOTICE:  Executing: TRUNCATE public.t1
+psql:sql/002_test.sql:8: NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0  ORDER BY id 
+psql:sql/002_test.sql:8: ERROR:  null value in column "name" of relation "t1" violates not-null constraint
 CONTEXT:  SQL statement "WITH inserted AS (INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0  ORDER BY id  RETURNING id) SELECT max(id) AS lastseq, count(*) AS rows FROM inserted"
 PL/pgSQL function start(bigint) line 51 at EXECUTE
 CONTEXT:  PL/pgSQL function start(bigint) line 79 at RAISE
 -- start(5) should fail because of out of range value
 CALL start(5);
-psql:sql/002_test.sql:12: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 0 AND id % 2 = 0 ORDER BY id LIMIT 200
-psql:sql/002_test.sql:12: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 400 AND id % 2 = 0 ORDER BY id LIMIT 200
-psql:sql/002_test.sql:12: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 800 AND id % 2 = 0 ORDER BY id LIMIT 200
-psql:sql/002_test.sql:12: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1200 AND id % 2 = 0 ORDER BY id LIMIT 200
-psql:sql/002_test.sql:12: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1600 AND id % 2 = 0 ORDER BY id LIMIT 200
-psql:sql/002_test.sql:12: ERROR:  smallint out of range
-CONTEXT:  SQL statement "WITH inserted AS (INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1600 AND id % 2 = 0 ORDER BY id LIMIT 200 RETURNING id) SELECT max(id) AS lastseq, count(*) AS rows FROM inserted"
+psql:sql/002_test.sql:11: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 2000 AND id % 2 = 0 ORDER BY id LIMIT 200
+psql:sql/002_test.sql:11: ERROR:  smallint out of range
+CONTEXT:  SQL statement "WITH inserted AS (INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 2000 AND id % 2 = 0 ORDER BY id LIMIT 200 RETURNING id) SELECT max(id) AS lastseq, count(*) AS rows FROM inserted"
 PL/pgSQL function start(bigint) line 51 at EXECUTE
 CONTEXT:  PL/pgSQL function start(bigint) line 79 at RAISE
 -- start(6) should succeed
 CALL start(6);
-psql:sql/002_test.sql:15: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 0 AND id % 2 = 1 ORDER BY id LIMIT 200
-psql:sql/002_test.sql:15: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 399 AND id % 2 = 1 ORDER BY id LIMIT 200
-psql:sql/002_test.sql:15: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 799 AND id % 2 = 1 ORDER BY id LIMIT 200
-psql:sql/002_test.sql:15: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1199 AND id % 2 = 1 ORDER BY id LIMIT 200
-psql:sql/002_test.sql:15: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1599 AND id % 2 = 1 ORDER BY id LIMIT 200
-psql:sql/002_test.sql:15: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1999 AND id % 2 = 1 ORDER BY id LIMIT 200
+psql:sql/002_test.sql:14: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1999 AND id % 2 = 1 ORDER BY id LIMIT 200
 CALL
 SELECT run_id, job_id, config_id, lastseq, rows, state
   FROM job WHERE run_id = 2;
  run_id | job_id | config_id | lastseq | rows |   state   
 --------+--------+-----------+---------+------+-----------
       2 |      4 |         1 |       0 |    0 | failed
-      2 |      5 |         2 |    1600 |  800 | failed
-      2 |      6 |         3 |    1999 | 1000 | completed
+      2 |      5 |         2 |    2000 |    0 | failed
+      2 |      6 |         3 |    1999 |    0 | completed
 (3 rows)
 
 SELECT run_id, target, rows, state
@@ -54,6 +43,6 @@ SELECT run_id, target, rows, state
  run_id |  target   | rows | state  
 --------+-----------+------+--------
       2 | public.t1 |    0 | failed
-      2 | public.t2 | 1800 | failed
+      2 | public.t2 |    0 | failed
 (2 rows)
 

@@ -16,8 +16,8 @@ WHERE n.nspname = 'public';
 **Alimenter la table config depuis les tables étrangères**
 
 ```sql
-INSERT INTO tools.config (relname, source, pkey)
-SELECT format('public.%I', c.relname), format('%I.%I', n.nspname, c.relname), a.attname
+INSERT INTO config (target, source, pkey, batchsize)
+SELECT format('public.%I', c.relname), format('%I.%I', n.nspname, c.relname), a.attname, 100000
 FROM pg_catalog.pg_foreign_table ft
 INNER JOIN pg_catalog.pg_class c ON c.oid = ft.ftrelid
 INNER JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
