@@ -58,6 +58,56 @@ CREATE TABLE IF NOT EXISTS task (
 
 CREATE INDEX ON task(job_id);
 
+-- "report" view returns the state of the last stage for each relation
+-- with a special column "rate" that shows the number of rows per second
+CREATE OR REPLACE VIEW report AS
+SELECT s.stage_id, j.target, min(j.ts) job_start, min(j.state) state,
+       sum(j.rows) rows, max(j.elapsed) elapsed,
+       sum(round(j.rows / extract(epoch from j.elapsed), 2)) AS rate
+  FROM job j
+  JOIN stage s USING (stage_id)
+ GROUP BY s.stage_id, j.target;
+
+-- "plan" function prepares a new stage by creating new job and task records
+-- "targets" parameter is used to filter the target relations
+CREATE OR REPLACE FUNCTION plan(targets text[] DEFAULT '{}'::text[])
+RETURNS TABLE (target regclass, invocation text)
+LANGUAGE SQL AS $$
+    WITH configs AS (
+        SELECT c.* AS target FROM fdw.config c
+        JOIN unnest(targets) s ON c.target = s::regclass
+        UNION
+        SELECT * FROM fdw.config
+        WHERE cardinality(targets) = 0
+        ORDER BY priority, condition
+    ), new_stage AS (
+        INSERT INTO fdw.stage DEFAULT VALUES
+        RETURNING stage_id
+    ), new_jobs AS (
+        INSERT INTO fdw.job (stage_id, target, part, lastseq)
+            SELECT stage_id, target, part,
+                   CASE WHEN NOT trunc THEN lastseq(target, part) ELSE 0 END
+            FROM new_stage CROSS JOIN (
+                SELECT * FROM configs
+                CROSS JOIN LATERAL generate_series(0, parts - 1) AS part
+            ) c
+        RETURNING job_id, target, part
+    ), new_tasks AS (
+        INSERT INTO fdw.task(job_id, source, target, pkey, batchsize, trunc, condition)
+            SELECT job_id, source, c.target, pkey, batchsize, trunc,
+                CASE WHEN c.parts = 1 THEN condition
+                     ELSE format('%s %% %s = %s%s', pkey, parts, part, 
+                        CASE WHEN condition IS NOT NULL 
+                             THEN format(' AND %s', condition) 
+                             ELSE '' END) END
+            FROM new_jobs j
+            JOIN fdw.config c USING (target)
+            RETURNING job_id, target
+    )
+    SELECT target, format('CALL fdw.copy(%s);', job_id)
+      FROM new_tasks;
+$$;
+
 -- "copy" procedure transfers data from source to target
 -- using the configuration in the "job" table
 CREATE OR REPLACE PROCEDURE copy(p_id bigint)
@@ -163,53 +213,3 @@ CREATE OR REPLACE FUNCTION lastseq(p_target regclass, p_part integer)
 RETURNS bigint LANGUAGE sql AS
 $$ SELECT COALESCE(MAX(lastseq), 0) FROM job 
     WHERE target = p_target AND part = p_part $$;
-
--- "plan" function prepares a new stage by creating new job and task records
--- "targets" parameter is used to filter the target relations
-CREATE OR REPLACE FUNCTION plan(targets text[] DEFAULT '{}'::text[])
-RETURNS TABLE (target regclass, invocation text)
-LANGUAGE SQL AS $$
-    WITH configs AS (
-        SELECT c.* AS target FROM fdw.config c
-        JOIN unnest(targets) s ON c.target = s::regclass
-        UNION
-        SELECT * FROM fdw.config
-        WHERE cardinality(targets) = 0
-        ORDER BY priority, condition
-    ), new_stage AS (
-        INSERT INTO fdw.stage DEFAULT VALUES
-        RETURNING stage_id
-    ), new_jobs AS (
-        INSERT INTO fdw.job (stage_id, target, part, lastseq)
-            SELECT stage_id, target, part,
-                   CASE WHEN NOT trunc THEN lastseq(target, part) ELSE 0 END
-            FROM new_stage CROSS JOIN (
-                SELECT * FROM configs
-                CROSS JOIN LATERAL generate_series(0, parts - 1) AS part
-            ) c
-        RETURNING job_id, target, part
-    ), new_tasks AS (
-        INSERT INTO fdw.task(job_id, source, target, pkey, batchsize, trunc, condition)
-            SELECT job_id, source, c.target, pkey, batchsize, trunc,
-                CASE WHEN c.parts = 1 THEN condition
-                     ELSE format('%s %% %s = %s%s', pkey, parts, part, 
-                        CASE WHEN condition IS NOT NULL 
-                             THEN format(' AND %s', condition) 
-                             ELSE '' END) END
-            FROM new_jobs j
-            JOIN fdw.config c USING (target)
-            RETURNING job_id, target
-    )
-    SELECT target, format('CALL fdw.copy(%s);', job_id)
-      FROM new_tasks;
-$$;
-
--- "report" view returns the state of the last stage for each relation
--- with a special column "rate" that shows the number of rows per second
-CREATE OR REPLACE VIEW report AS
-SELECT s.stage_id, j.target, min(j.ts) job_start, min(j.state) state,
-       sum(j.rows) rows, max(j.elapsed) elapsed,
-       sum(round(j.rows / extract(epoch from j.elapsed), 2)) AS rate
-  FROM job j
-  JOIN stage s USING (stage_id)
- GROUP BY s.stage_id, j.target;
