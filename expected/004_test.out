@@ -11,6 +11,6 @@ SELECT target, statement FROM run();
 
 -- start(11) should succeed and "limit" must be quoted
 CALL start(11);
-psql:sql/004_test.sql:10: NOTICE:  Executing: TRUNCATE public.withkeywords
-psql:sql/004_test.sql:10: NOTICE:  Executing: INSERT INTO public.withkeywords SELECT id, "limit" FROM source.withkeywords WHERE id > 0  ORDER BY id 
+NOTICE:  Executing: TRUNCATE public.withkeywords
+NOTICE:  Executing: INSERT INTO public.withkeywords SELECT id, "limit" FROM source.withkeywords WHERE id > 0  ORDER BY id 
 CALL

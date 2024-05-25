@@ -18,7 +18,7 @@ setup:
 
 results/%_test.out: sql/%_test.sql setup
 	@echo "-- Running tests from $<"
-	@psql -af $< > $@ 2>&1
+	@psql -a < $< > $@ 2>&1
 	@diff -u expected/$*_test.out $@ || true
 
 clean:
