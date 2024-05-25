@@ -1,0 +1,36 @@
+SET tools.targets = 'public.t1';
+SET
+-- Should return a single job for public.t1
+SELECT target, statement FROM run();
+  target   |      statement       
+-----------+----------------------
+ public.t1 | CALL tools.start(7);
+(1 row)
+
+SELECT run_id, job_id, config_id, lastseq, rows, state 
+  FROM job WHERE run_id = 3;
+ run_id | job_id | config_id | lastseq | rows |  state  
+--------+--------+-----------+---------+------+---------
+      3 |      7 |         1 |       0 |    0 | pending
+(1 row)
+
+RESET tools.targets;
+RESET
+-- Should return all jobs
+SELECT target, statement FROM run();
+  target   |       statement       
+-----------+-----------------------
+ public.t1 | CALL tools.start(8);
+ public.t2 | CALL tools.start(9);
+ public.t2 | CALL tools.start(10);
+(3 rows)
+
+SELECT run_id, job_id, config_id, lastseq, rows, state 
+  FROM job WHERE run_id = 4;
+ run_id | job_id | config_id | lastseq | rows |  state  
+--------+--------+-----------+---------+------+---------
+      4 |      8 |         1 |       0 |    0 | pending
+      4 |      9 |         2 |       0 |    0 | pending
+      4 |     10 |         3 |       0 |    0 | pending
+(3 rows)
+

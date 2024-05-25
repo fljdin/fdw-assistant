@@ -3,6 +3,9 @@
 CREATE SCHEMA IF NOT EXISTS tools;
 SET search_path = tools;
 
+-- "tools.targets" setting is used to filter the source relations
+ALTER DATABASE :DBNAME SET tools.targets TO '';
+
 -- "state" enum represents the state of a job
 CREATE TYPE state AS ENUM ('pending', 'running', 'failed', 'completed');
 
@@ -52,6 +55,12 @@ BEGIN
     SELECT * INTO r
         FROM tools.job JOIN tools.config USING (config_id)
         WHERE job_id = p_id;
+
+    -- Raise an exception if the job does not exist
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Job % not found', p_id;
+    END IF;
+
     IF r.trunc THEN
         stmt := format('TRUNCATE %s', r.target);
         r.lastseq := 0;
@@ -126,18 +135,25 @@ LANGUAGE SQL AS $$
      GROUP BY p_target;
 $$;
 
--- "run" function inserts a new run record
--- and returns the statements to execute
+-- "run" function inserts a new run record and returns the statements to execute
+-- "tools.targets" setting is used to filter the target relations
 CREATE OR REPLACE FUNCTION tools.run()
 RETURNS TABLE (statement text, target regclass)
 LANGUAGE SQL AS $$
     WITH new_run AS (
         INSERT INTO tools.run DEFAULT VALUES
         RETURNING run_id
+    ), targets AS (
+        SELECT s::regclass AS target
+        FROM string_to_table(current_setting('tools.targets'),',') AS t(s)
+        UNION
+        SELECT DISTINCT target FROM tools.config
+        WHERE current_setting('tools.targets') = ''
     ), new_job AS (
         INSERT INTO tools.job (run_id, config_id)
             SELECT run_id, config_id
             FROM tools.config
+            JOIN targets USING (target)
             CROSS JOIN new_run
         RETURNING job_id, config_id
     )

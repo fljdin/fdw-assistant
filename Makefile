@@ -2,7 +2,8 @@ export PGDATABASE = test
 export PGOPTIONS  = --search_path=tools
 export PSQL_PAGER =
 
-EXP := $(wildcard expected/*_test.out)
+SQL := $(wildcard sql/*_test.sql)
+EXP := $(patsubst sql/%_test.sql,expected/%_test.out,$(SQL))
 OUT := $(patsubst expected/%,results/%,$(EXP))
 
 .PHONY: test

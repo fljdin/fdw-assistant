@@ -18,8 +18,8 @@ psql:sql/002_test.sql:9: NOTICE:  Executing: TRUNCATE public.t1
 psql:sql/002_test.sql:9: NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0  ORDER BY id 
 psql:sql/002_test.sql:9: ERROR:  null value in column "name" of relation "t1" violates not-null constraint
 CONTEXT:  SQL statement "WITH inserted AS (INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0  ORDER BY id  RETURNING id) SELECT max(id) AS lastseq, count(*) AS rows FROM inserted"
-PL/pgSQL function start(bigint) line 44 at EXECUTE
-CONTEXT:  PL/pgSQL function start(bigint) line 71 at RAISE
+PL/pgSQL function start(bigint) line 50 at EXECUTE
+CONTEXT:  PL/pgSQL function start(bigint) line 77 at RAISE
 -- start(5) should fail because of out of range value
 CALL start(5);
 psql:sql/002_test.sql:12: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 0 AND id % 2 = 0 ORDER BY id LIMIT 200
@@ -29,8 +29,8 @@ psql:sql/002_test.sql:12: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, n
 psql:sql/002_test.sql:12: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1600 AND id % 2 = 0 ORDER BY id LIMIT 200
 psql:sql/002_test.sql:12: ERROR:  smallint out of range
 CONTEXT:  SQL statement "WITH inserted AS (INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1600 AND id % 2 = 0 ORDER BY id LIMIT 200 RETURNING id) SELECT max(id) AS lastseq, count(*) AS rows FROM inserted"
-PL/pgSQL function start(bigint) line 44 at EXECUTE
-CONTEXT:  PL/pgSQL function start(bigint) line 71 at RAISE
+PL/pgSQL function start(bigint) line 50 at EXECUTE
+CONTEXT:  PL/pgSQL function start(bigint) line 77 at RAISE
 -- start(6) should succeed
 CALL start(6);
 psql:sql/002_test.sql:15: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 0 AND id % 2 = 1 ORDER BY id LIMIT 200
