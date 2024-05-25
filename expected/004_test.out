@@ -1,8 +1,8 @@
 INSERT INTO config (source, target, pkey, condition, batchsize, trunc) VALUES
     ('source.withkeywords', 'public.withkeywords', 'id', null, null, true);
 INSERT 0 1
-SELECT target, statement FROM plan('{public.withkeywords}');
-       target        |     statement      
+SELECT target, invocation FROM plan('{public.withkeywords}');
+       target        |     invocation     
 ---------------------+--------------------
  public.withkeywords | CALL fdw.copy(11);
 (1 row)

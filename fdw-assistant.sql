@@ -17,9 +17,11 @@ CREATE TABLE IF NOT EXISTS config (
     target regclass not null,
     pkey text not null,
     priority numeric not null default 1,
+    parts integer not null default 1,
+    trunc boolean not null default true,
     condition text,
     batchsize integer,
-    trunc boolean not null default true
+    PRIMARY KEY (source, target)
 );
 
 -- "stage" table represents a execution of several jobs
@@ -30,16 +32,32 @@ CREATE TABLE IF NOT EXISTS stage (
 
 -- "job" table represents the state of table copies for each stage
 CREATE TABLE IF NOT EXISTS job (
-    stage_id bigint not null references stage(stage_id) on delete cascade,
     job_id bigint generated always as identity,
+    stage_id bigint not null references stage(stage_id) on delete cascade,
     config_id bigint not null references config(config_id) on delete cascade,
+    target regclass not null,
     lastseq bigint not null default 0,
     rows bigint not null default 0,
     elapsed interval,
     ts timestamp,
     state state not null default 'pending',
-    PRIMARY KEY (stage_id, job_id)
+    PRIMARY KEY (job_id)
 );
+
+CREATE INDEX ON job(target);
+
+-- "task" table represents the configuration of each job
+CREATE TABLE IF NOT EXISTS task (
+    job_id bigint not null references job(job_id),
+    source regclass not null,
+    target regclass not null,
+    pkey text not null,
+    trunc boolean not null default true
+    condition text,
+    batchsize integer,
+);
+
+CREATE INDEX ON task(job_id);
 
 -- "copy" procedure transfers data from source to target
 -- using the configuration in the "job" table
@@ -55,7 +73,7 @@ DECLARE
     v_start timestamp;
 BEGIN
     SELECT * INTO r
-        FROM fdw.job JOIN fdw.config USING (config_id)
+        FROM fdw.job JOIN fdw.task USING (job_id)
         WHERE job_id = p_id;
 
     -- Raise an exception if the job does not exist
@@ -141,46 +159,49 @@ LANGUAGE SQL AS $$
      GROUP BY p_target;
 $$;
 
--- "plan" function inserts a new stage record and returns the statements to execute
+-- "lastseq" function return the upper sequence number from the previous stages
+CREATE OR REPLACE FUNCTION lastseq(p_config_id regclass)
+RETURNS bigint LANGUAGE sql AS
+$$ SELECT COALESCE(MAX(lastseq), 0) FROM job WHERE config_id = p_config_id $$;
+
+-- "plan" function prepares a new stage by creating new job and task records
 -- "targets" parameter is used to filter the target relations
 CREATE OR REPLACE FUNCTION plan(targets text[] DEFAULT '{}'::text[])
-RETURNS TABLE (statement text, target regclass)
+RETURNS TABLE (target regclass, invocation text)
 LANGUAGE SQL AS $$
-    WITH targets AS (
-        SELECT s::regclass AS target
-        FROM unnest(targets) s
+    WITH configs AS (
+        SELECT c.* AS target FROM fdw.config c
+        JOIN unnest(targets) s ON c.target = s::regclass
         UNION
-        SELECT DISTINCT target FROM fdw.config
+        SELECT * FROM fdw.config
         WHERE cardinality(targets) = 0
+        ORDER BY priority, condition
     ), new_stage AS (
         INSERT INTO fdw.stage DEFAULT VALUES
         RETURNING stage_id
     ), new_jobs AS (
-        INSERT INTO fdw.job (stage_id, config_id, lastseq)
-            -- Get the last sequence number from the last stage
-            -- if target may not be truncated. Otherwise, use 0
-            SELECT stage_id, config_id, COALESCE(
-                (SELECT max(lastseq) FROM fdw.job
-                   JOIN fdw.config USING (config_id)
-                  WHERE config_id = c.config_id AND NOT trunc), 0)
-            FROM fdw.config c
-            JOIN targets USING (target)
-            CROSS JOIN new_stage
-        RETURNING job_id, config_id
+        INSERT INTO fdw.job (stage_id, config_id, target, lastseq)
+            SELECT stage_id, config_id, target,
+                   CASE WHEN NOT trunc THEN lastseq(config_id) ELSE 0 END
+            FROM new_stage CROSS JOIN configs
+        RETURNING job_id, config_id, target
+    ), new_tasks AS (
+        INSERT INTO fdw.task(job_id, source, target, pkey, condition, batchsize, trunc)
+            SELECT job_id, source, c.target, pkey, condition, batchsize, trunc
+            FROM new_jobs j
+            JOIN fdw.config c USING (config_id)
+            RETURNING job_id, target
     )
-    SELECT format('CALL fdw.copy(%s);', job_id), target
-      FROM new_jobs
-      JOIN fdw.config USING (config_id)
-      ORDER BY priority, job_id;
+    SELECT target, format('CALL fdw.copy(%s);', job_id)
+      FROM new_tasks;
 $$;
 
 -- "report" view returns the state of the last stage for each relation
 -- with a special column "rate" that shows the number of rows per second
 CREATE OR REPLACE VIEW report AS
-SELECT r.stage_id, c.target, min(j.ts) job_start, min(j.state) state,
+SELECT s.stage_id, j.target, min(j.ts) job_start, min(j.state) state,
        sum(j.rows) rows, max(j.elapsed) elapsed,
        sum(round(j.rows / extract(epoch from j.elapsed), 2)) AS rate
   FROM job j
-  JOIN config c USING (config_id)
-  JOIN stage r USING (stage_id)
- GROUP BY r.stage_id, c.target;
+  JOIN stage s USING (stage_id)
+ GROUP BY s.stage_id, j.target;
