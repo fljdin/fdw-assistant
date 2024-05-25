@@ -13,10 +13,10 @@ INSERT INTO tools.config (relname, source, pkey, condition, batchsize, trunc) VA
     ('public.t2', 'source.t2', 'id', 'id % 2 = 0', 200, false),
     ('public.t2', 'source.t2', 'id', 'id % 2 = 1', 200, false);
 
-SELECT plan(6);
+SELECT plan(5);
 
 SELECT results_eq(
-    'SELECT statement FROM tools.newrun()',
+    'SELECT statement FROM tools.run()',
     ARRAY[
         'CALL tools.start(1);',
         'CALL tools.start(2);',
@@ -48,16 +48,6 @@ SELECT set_eq(
         WHERE relname = 't2'::regclass $$,
     ARRAY[1000],
     'Both jobs copied 1000 rows'
-);
-
-SELECT results_eq(
-    $$ SELECT statement FROM tools.run(1) $$,
-    ARRAY[
-        'CALL tools.start(1);',
-        'CALL tools.start(2);',
-        'CALL tools.start(3);'
-    ],
-    '"run" function returns the previous job statements'
 );
 
 -- Insert more 1000 rows in t2

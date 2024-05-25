@@ -22,9 +22,9 @@ CREATE TABLE IF NOT EXISTS run (
 
 -- "job" table represents the state of table copies for each run
 CREATE TABLE IF NOT EXISTS job (
-    run_id bigint not null references run(run_id),
+    run_id bigint not null references run(run_id) on delete cascade,
     job_id bigint generated always as identity,
-    config_id bigint not null references config(config_id),
+    config_id bigint not null references config(config_id) on delete cascade,
     lastseq bigint not null default 0,
     rows bigint not null default 0,
     elapsed interval not null default '0'::interval,
@@ -107,9 +107,9 @@ LANGUAGE SQL AS $$
      GROUP BY p_relname;
 $$;
 
--- "newrun" function truncate relations, inserts a new run record,
+-- "run" function inserts a new run record
 -- and returns the statements to execute
-CREATE OR REPLACE FUNCTION tools.newrun()
+CREATE OR REPLACE FUNCTION tools.run()
 RETURNS TABLE (statement text, relname regclass)
 LANGUAGE SQL AS $$
     WITH new_run AS (
@@ -125,16 +125,6 @@ LANGUAGE SQL AS $$
     SELECT format('CALL tools.start(%s);', job_id), relname
       FROM new_job
       JOIN tools.config USING (config_id);
-$$;
-
--- "run" function returns statements attached to an existing run
-CREATE OR REPLACE FUNCTION tools.run(p_run_id bigint)
-RETURNS TABLE (statement text, relname regclass)
-LANGUAGE SQL AS $$
-    SELECT format('CALL tools.start(%s);', job_id), relname
-      FROM tools.job
-      JOIN tools.config USING (config_id)
-     WHERE run_id = p_run_id;
 $$;
 
 -- "report" view returns the state of the last run for each relation
