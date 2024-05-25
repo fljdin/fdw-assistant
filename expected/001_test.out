@@ -1,16 +1,17 @@
-INSERT INTO config (source, target, pkey, priority, condition, batchsize, trunc) VALUES
+INSERT INTO config (source, target, pkey, priority, parts, trunc, condition, batchsize) VALUES
 -- t1 will be copied in a single operation
-    ('source.t1', 'public.t1', 'id', 100, null, null, true),
+    ('source.t1', 'public.t1', 'id', 100, 1, true, null, null),
 -- t2 will be dispatched to two jobs, each will insert data with a batch size of 200
-    ('source.t2', 'public.t2', 'id', 1, 'id % 2 = 0', 200, false),
-    ('source.t2', 'public.t2', 'id', 1, 'id % 2 = 1', 200, false);
+    ('source.t2', 'public.t2', 'id', 1, 2, false, null, 200),
+-- t3 will be copied with a condition that filters negative values
+    ('source.t3', 'public.t3', 'id', 200, 2, true, 'value >= 0', null);
 INSERT 0 3
 SELECT * FROM config;
- config_id |  source   |  target   | pkey | priority | condition  | batchsize | trunc 
------------+-----------+-----------+------+----------+------------+-----------+-------
-         1 | source.t1 | public.t1 | id   |      100 |            |           | t
-         2 | source.t2 | public.t2 | id   |        1 | id % 2 = 0 |       200 | f
-         3 | source.t2 | public.t2 | id   |        1 | id % 2 = 1 |       200 | f
+  source   |  target   | pkey | priority | parts | condition  | batchsize | trunc 
+-----------+-----------+------+----------+-------+------------+-----------+-------
+ source.t1 | public.t1 | id   |      100 |     1 |            |           | t
+ source.t2 | public.t2 | id   |        1 |     2 |            |       200 | f
+ source.t3 | public.t3 | id   |      200 |     2 | value >= 0 |           | t
 (3 rows)
 
 -- "plan" must order the jobs by priority (lower first)
@@ -20,7 +21,9 @@ SELECT target, invocation FROM plan();
  public.t2 | CALL fdw.copy(1);
  public.t2 | CALL fdw.copy(2);
  public.t1 | CALL fdw.copy(3);
-(3 rows)
+ public.t3 | CALL fdw.copy(4);
+ public.t3 | CALL fdw.copy(5);
+(5 rows)
 
 -- "report" view shows the aggregated state for each target table
 SELECT * FROM report WHERE stage_id = 1;
@@ -28,7 +31,8 @@ SELECT * FROM report WHERE stage_id = 1;
 ----------+-----------+-----------+---------+------+---------+------
         1 | public.t1 |           | pending |    0 |         |     
         1 | public.t2 |           | pending |    0 |         |     
-(2 rows)
+        1 | public.t3 |           | pending |    0 |         |     
+(3 rows)
 
 -- copy(1) and copy(2) should share an half of the data from source.t2
 CALL copy(1);
@@ -43,14 +47,16 @@ NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WH
 NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 799 AND id % 2 = 1 ORDER BY id LIMIT 200
 NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 999 AND id % 2 = 1 ORDER BY id LIMIT 200
 CALL
-SELECT stage_id, job_id, config_id, lastseq, rows, state
+SELECT stage_id, job_id, target, part, lastseq, rows, state
   FROM job WHERE stage_id = 1 ORDER BY job_id;
- stage_id | job_id | config_id | lastseq | rows |   state   
-----------+--------+-----------+---------+------+-----------
-        1 |      1 |         2 |    1000 |  500 | completed
-        1 |      2 |         3 |     999 |  500 | completed
-        1 |      3 |         1 |       0 |    0 | pending
-(3 rows)
+ stage_id | job_id |  target   | part | lastseq | rows |   state   
+----------+--------+-----------+------+---------+------+-----------
+        1 |      1 | public.t2 |    0 |    1000 |  500 | completed
+        1 |      2 | public.t2 |    1 |     999 |  500 | completed
+        1 |      3 | public.t1 |    0 |       0 |    0 | pending
+        1 |      4 | public.t3 |    0 |       0 |    0 | pending
+        1 |      5 | public.t3 |    1 |       0 |    0 | pending
+(5 rows)
 
 INSERT INTO source.t2 (id, age, name)
     SELECT i, i, 'name' || i FROM generate_series(1001, 2000) i;
@@ -68,14 +74,16 @@ NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WH
 NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1799 AND id % 2 = 1 ORDER BY id LIMIT 200
 NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1999 AND id % 2 = 1 ORDER BY id LIMIT 200
 CALL
-SELECT stage_id, job_id, config_id, lastseq, rows, state
+SELECT stage_id, job_id, target, part, lastseq, rows, state
   FROM job WHERE stage_id = 1 ORDER BY job_id;
- stage_id | job_id | config_id | lastseq | rows |   state   
-----------+--------+-----------+---------+------+-----------
-        1 |      1 |         2 |    2000 | 1000 | completed
-        1 |      2 |         3 |    1999 | 1000 | completed
-        1 |      3 |         1 |       0 |    0 | pending
-(3 rows)
+ stage_id | job_id |  target   | part | lastseq | rows |   state   
+----------+--------+-----------+------+---------+------+-----------
+        1 |      1 | public.t2 |    0 |    2000 | 1000 | completed
+        1 |      2 | public.t2 |    1 |    1999 | 1000 | completed
+        1 |      3 | public.t1 |    0 |       0 |    0 | pending
+        1 |      4 | public.t3 |    0 |       0 |    0 | pending
+        1 |      5 | public.t3 |    1 |       0 |    0 | pending
+(5 rows)
 
 -- copy(3) should truncate public.t1 as it is a new stage
 CALL copy(3);
@@ -86,15 +94,26 @@ CALL
 CALL copy(3);
 NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 100  ORDER BY id 
 CALL
-SELECT stage_id, job_id, config_id, lastseq, rows, state
+SELECT stage_id, job_id, target, part, lastseq, rows, state
   FROM job WHERE stage_id = 1 ORDER BY job_id;
- stage_id | job_id | config_id | lastseq | rows |   state   
-----------+--------+-----------+---------+------+-----------
-        1 |      1 |         2 |    2000 | 1000 | completed
-        1 |      2 |         3 |    1999 | 1000 | completed
-        1 |      3 |         1 |     100 |  100 | completed
-(3 rows)
+ stage_id | job_id |  target   | part | lastseq | rows |   state   
+----------+--------+-----------+------+---------+------+-----------
+        1 |      1 | public.t2 |    0 |    2000 | 1000 | completed
+        1 |      2 | public.t2 |    1 |    1999 | 1000 | completed
+        1 |      3 | public.t1 |    0 |     100 |  100 | completed
+        1 |      4 | public.t3 |    0 |       0 |    0 | pending
+        1 |      5 | public.t3 |    1 |       0 |    0 | pending
+(5 rows)
 
+-- copy(4) and copy(5) should copy the positive values from source.t3
+CALL copy(4);
+NOTICE:  Executing: TRUNCATE public.t3
+NOTICE:  Executing: INSERT INTO public.t3 SELECT id, value FROM source.t3 WHERE id > 0 AND id % 2 = 0 AND value >= 0 ORDER BY id 
+CALL
+CALL copy(5);
+NOTICE:  Executing: TRUNCATE public.t3
+NOTICE:  Executing: INSERT INTO public.t3 SELECT id, value FROM source.t3 WHERE id > 0 AND id % 2 = 1 AND value >= 0 ORDER BY id 
+CALL
 -- "report" view should compiles the state of the last stage for each relation
 SELECT stage_id, target, rows, state
   FROM report WHERE stage_id = 1 ORDER BY target;
@@ -102,5 +121,6 @@ SELECT stage_id, target, rows, state
 ----------+-----------+------+-----------
         1 | public.t1 |  100 | completed
         1 | public.t2 | 2000 | completed
-(2 rows)
+        1 | public.t3 |  100 | completed
+(3 rows)
 

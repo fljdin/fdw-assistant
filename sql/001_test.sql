@@ -1,10 +1,11 @@
 
-INSERT INTO config (source, target, pkey, priority, condition, batchsize, trunc) VALUES
+INSERT INTO config (source, target, pkey, priority, parts, trunc, condition, batchsize) VALUES
 -- t1 will be copied in a single operation
-    ('source.t1', 'public.t1', 'id', 100, null, null, true),
+    ('source.t1', 'public.t1', 'id', 100, 1, true, null, null),
 -- t2 will be dispatched to two jobs, each will insert data with a batch size of 200
-    ('source.t2', 'public.t2', 'id', 1, 'id % 2 = 0', 200, false),
-    ('source.t2', 'public.t2', 'id', 1, 'id % 2 = 1', 200, false);
+    ('source.t2', 'public.t2', 'id', 1, 2, false, null, 200),
+-- t3 will be copied with a condition that filters negative values
+    ('source.t3', 'public.t3', 'id', 200, 2, true, 'value >= 0', null);
 
 SELECT * FROM config;
 
@@ -18,7 +19,7 @@ SELECT * FROM report WHERE stage_id = 1;
 CALL copy(1);
 CALL copy(2);
 
-SELECT stage_id, job_id, config_id, lastseq, rows, state
+SELECT stage_id, job_id, target, part, lastseq, rows, state
   FROM job WHERE stage_id = 1 ORDER BY job_id;
 
 INSERT INTO source.t2 (id, age, name)
@@ -28,7 +29,7 @@ INSERT INTO source.t2 (id, age, name)
 CALL copy(1);
 CALL copy(2);
 
-SELECT stage_id, job_id, config_id, lastseq, rows, state
+SELECT stage_id, job_id, target, part, lastseq, rows, state
   FROM job WHERE stage_id = 1 ORDER BY job_id;
 
 -- copy(3) should truncate public.t1 as it is a new stage
@@ -37,8 +38,12 @@ CALL copy(3);
 -- copy(3) should do nothing more because there is no new data in source.t1
 CALL copy(3);
 
-SELECT stage_id, job_id, config_id, lastseq, rows, state
+SELECT stage_id, job_id, target, part, lastseq, rows, state
   FROM job WHERE stage_id = 1 ORDER BY job_id;
+
+-- copy(4) and copy(5) should copy the positive values from source.t3
+CALL copy(4);
+CALL copy(5);
 
 -- "report" view should compiles the state of the last stage for each relation
 SELECT stage_id, target, rows, state

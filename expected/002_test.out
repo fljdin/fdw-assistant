@@ -3,50 +3,55 @@ UPDATE 1
 INSERT INTO source.t2 (id, age, name) SELECT 2002, 2^(16-1), 'foo';
 INSERT 0 1
 SELECT target, invocation FROM plan();
-  target   |    invocation     
------------+-------------------
- public.t2 | CALL fdw.copy(4);
- public.t2 | CALL fdw.copy(5);
- public.t1 | CALL fdw.copy(6);
-(3 rows)
+  target   |     invocation     
+-----------+--------------------
+ public.t2 | CALL fdw.copy(6);
+ public.t2 | CALL fdw.copy(7);
+ public.t1 | CALL fdw.copy(8);
+ public.t3 | CALL fdw.copy(9);
+ public.t3 | CALL fdw.copy(10);
+(5 rows)
 
--- copy(4) should fail because of out of range value
-CALL copy(4);
+-- copy(6) should fail because of out of range value
+CALL copy(6);
 NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 2000 AND id % 2 = 0 ORDER BY id LIMIT 200
 ERROR:  smallint out of range
 CONTEXT:  SQL statement "WITH inserted AS (INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 2000 AND id % 2 = 0 ORDER BY id LIMIT 200 RETURNING id) SELECT max(id) AS lastseq, count(*) AS rows FROM inserted"
 PL/pgSQL function copy(bigint) line 50 at EXECUTE
 CONTEXT:  PL/pgSQL function copy(bigint) line 81 at RAISE
--- copy(5) should succeed
-CALL copy(5);
+-- copy(7) should succeed
+CALL copy(7);
 NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1999 AND id % 2 = 1 ORDER BY id LIMIT 200
 CALL
--- copy(6) should fail because of the NOT NULL constraint
-CALL copy(6);
+-- copy(8) should fail because of the NOT NULL constraint
+CALL copy(8);
 NOTICE:  Executing: TRUNCATE public.t1
 NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0  ORDER BY id 
 ERROR:  null value in column "name" of relation "t1" violates not-null constraint
 CONTEXT:  SQL statement "WITH inserted AS (INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0  ORDER BY id  RETURNING id) SELECT max(id) AS lastseq, count(*) AS rows FROM inserted"
 PL/pgSQL function copy(bigint) line 50 at EXECUTE
 CONTEXT:  PL/pgSQL function copy(bigint) line 81 at RAISE
--- copy(7) should fail because job_id does not exist
-CALL copy(7);
-ERROR:  Job 7 not found
+-- copy(100) should fail because job_id does not exist
+CALL copy(100);
+ERROR:  Job 100 not found
 CONTEXT:  PL/pgSQL function copy(bigint) line 17 at RAISE
-SELECT stage_id, job_id, config_id, lastseq, rows, state
-  FROM job WHERE stage_id = 2;
- stage_id | job_id | config_id | lastseq | rows |   state   
-----------+--------+-----------+---------+------+-----------
-        2 |      4 |         2 |    2000 |    0 | failed
-        2 |      5 |         3 |    1999 |    0 | completed
-        2 |      6 |         1 |       0 |    0 | failed
-(3 rows)
+SELECT stage_id, job_id, target, part, lastseq, rows, state
+  FROM job WHERE stage_id = 2 ORDER BY job_id;
+ stage_id | job_id |  target   | part | lastseq | rows |   state   
+----------+--------+-----------+------+---------+------+-----------
+        2 |      6 | public.t2 |    0 |    2000 |    0 | failed
+        2 |      7 | public.t2 |    1 |    1999 |    0 | completed
+        2 |      8 | public.t1 |    0 |       0 |    0 | failed
+        2 |      9 | public.t3 |    0 |       0 |    0 | pending
+        2 |     10 | public.t3 |    1 |       0 |    0 | pending
+(5 rows)
 
 SELECT stage_id, target, rows, state
   FROM report WHERE stage_id = 2 ORDER BY target;
- stage_id |  target   | rows | state  
-----------+-----------+------+--------
+ stage_id |  target   | rows |  state  
+----------+-----------+------+---------
         2 | public.t1 |    0 | failed
         2 | public.t2 |    0 | failed
-(2 rows)
+        2 | public.t3 |    0 | pending
+(3 rows)
 

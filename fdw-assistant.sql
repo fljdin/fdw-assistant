@@ -12,7 +12,6 @@ END$$;
 
 -- "config" table represents the configuration of relation
 CREATE TABLE IF NOT EXISTS config (
-    config_id bigint generated always as identity primary key,
     source regclass not null,
     target regclass not null,
     pkey text not null,
@@ -34,8 +33,8 @@ CREATE TABLE IF NOT EXISTS stage (
 CREATE TABLE IF NOT EXISTS job (
     job_id bigint generated always as identity,
     stage_id bigint not null references stage(stage_id) on delete cascade,
-    config_id bigint not null references config(config_id) on delete cascade,
     target regclass not null,
+    part integer not null default 0,
     lastseq bigint not null default 0,
     rows bigint not null default 0,
     elapsed interval,
@@ -160,9 +159,10 @@ LANGUAGE SQL AS $$
 $$;
 
 -- "lastseq" function return the upper sequence number from the previous stages
-CREATE OR REPLACE FUNCTION lastseq(p_config_id regclass)
+CREATE OR REPLACE FUNCTION lastseq(p_target regclass, p_part integer)
 RETURNS bigint LANGUAGE sql AS
-$$ SELECT COALESCE(MAX(lastseq), 0) FROM job WHERE config_id = p_config_id $$;
+$$ SELECT COALESCE(MAX(lastseq), 0) FROM job 
+    WHERE target = p_target AND part = p_part $$;
 
 -- "plan" function prepares a new stage by creating new job and task records
 -- "targets" parameter is used to filter the target relations
@@ -180,16 +180,24 @@ LANGUAGE SQL AS $$
         INSERT INTO fdw.stage DEFAULT VALUES
         RETURNING stage_id
     ), new_jobs AS (
-        INSERT INTO fdw.job (stage_id, config_id, target, lastseq)
-            SELECT stage_id, config_id, target,
-                   CASE WHEN NOT trunc THEN lastseq(config_id) ELSE 0 END
-            FROM new_stage CROSS JOIN configs
-        RETURNING job_id, config_id, target
+        INSERT INTO fdw.job (stage_id, target, part, lastseq)
+            SELECT stage_id, target, part,
+                   CASE WHEN NOT trunc THEN lastseq(target, part) ELSE 0 END
+            FROM new_stage CROSS JOIN (
+                SELECT * FROM configs
+                CROSS JOIN LATERAL generate_series(0, parts - 1) AS part
+            ) c
+        RETURNING job_id, target, part
     ), new_tasks AS (
-        INSERT INTO fdw.task(job_id, source, target, pkey, condition, batchsize, trunc)
-            SELECT job_id, source, c.target, pkey, condition, batchsize, trunc
+        INSERT INTO fdw.task(job_id, source, target, pkey, batchsize, trunc, condition)
+            SELECT job_id, source, c.target, pkey, batchsize, trunc,
+                CASE WHEN c.parts = 1 THEN condition
+                     ELSE format('%s %% %s = %s%s', pkey, parts, part, 
+                        CASE WHEN condition IS NOT NULL 
+                             THEN format(' AND %s', condition) 
+                             ELSE '' END) END
             FROM new_jobs j
-            JOIN fdw.config c USING (config_id)
+            JOIN fdw.config c USING (target)
             RETURNING job_id, target
     )
     SELECT target, format('CALL fdw.copy(%s);', job_id)

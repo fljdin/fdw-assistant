@@ -2,13 +2,13 @@
 -- Should return a single job for public.t1
 SELECT target, invocation FROM plan('{public.t1}');
 
-SELECT stage_id, job_id, config_id, lastseq, rows, state
+SELECT stage_id, job_id, target, part, lastseq, rows, state
   FROM job WHERE stage_id = 3;
 
 -- Should return all jobs
 SELECT target, invocation FROM plan();
 
-SELECT stage_id, job_id, config_id, lastseq, rows, state
+SELECT stage_id, job_id, target, part, lastseq, rows, state
   FROM job WHERE stage_id = 4;
 
 -- Should fail as the table does not exist
