@@ -21,10 +21,18 @@ SELECT target, statement FROM run();
  public.t2 | CALL tools.start(3);
 (3 rows)
 
+-- "report" view shows the aggregated state for each target table 
+SELECT * FROM report WHERE run_id = 1;
+ run_id |  target   | job_start |  state  | rows | elapsed | rate 
+--------+-----------+-----------+---------+------+---------+------
+      1 | public.t1 |           | pending |    0 |         |     
+      1 | public.t2 |           | pending |    0 |         |     
+(2 rows)
+
 -- start(1) should truncate public.t1 as configured
 CALL start(1);
-psql:sql/001_test.sql:14: NOTICE:  Executing: TRUNCATE public.t1
-psql:sql/001_test.sql:14: NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0  ORDER BY id 
+psql:sql/001_test.sql:17: NOTICE:  Executing: TRUNCATE public.t1
+psql:sql/001_test.sql:17: NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0  ORDER BY id 
 CALL
 SELECT run_id, job_id, config_id, lastseq, rows, state 
   FROM job WHERE run_id = 1 ORDER BY job_id;
@@ -37,16 +45,16 @@ SELECT run_id, job_id, config_id, lastseq, rows, state
 
 -- start(2) and start(3) should share an half of the data from source.t2
 CALL start(2);
-psql:sql/001_test.sql:20: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 0 AND id % 2 = 0 ORDER BY id LIMIT 200
-psql:sql/001_test.sql:20: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 400 AND id % 2 = 0 ORDER BY id LIMIT 200
-psql:sql/001_test.sql:20: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 800 AND id % 2 = 0 ORDER BY id LIMIT 200
-psql:sql/001_test.sql:20: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1000 AND id % 2 = 0 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:23: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 0 AND id % 2 = 0 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:23: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 400 AND id % 2 = 0 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:23: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 800 AND id % 2 = 0 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:23: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1000 AND id % 2 = 0 ORDER BY id LIMIT 200
 CALL
 CALL start(3);
-psql:sql/001_test.sql:21: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 0 AND id % 2 = 1 ORDER BY id LIMIT 200
-psql:sql/001_test.sql:21: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 399 AND id % 2 = 1 ORDER BY id LIMIT 200
-psql:sql/001_test.sql:21: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 799 AND id % 2 = 1 ORDER BY id LIMIT 200
-psql:sql/001_test.sql:21: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 999 AND id % 2 = 1 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:24: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 0 AND id % 2 = 1 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:24: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 399 AND id % 2 = 1 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:24: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 799 AND id % 2 = 1 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:24: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 999 AND id % 2 = 1 ORDER BY id LIMIT 200
 CALL
 SELECT run_id, job_id, config_id, lastseq, rows, state 
   FROM job WHERE run_id = 1 ORDER BY job_id;
@@ -63,16 +71,16 @@ INSERT 0 1000
 -- start(2) and start(3) should continue from where they left
 -- whithout truncating the target table
 CALL start(2);
-psql:sql/001_test.sql:31: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1000 AND id % 2 = 0 ORDER BY id LIMIT 200
-psql:sql/001_test.sql:31: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1400 AND id % 2 = 0 ORDER BY id LIMIT 200
-psql:sql/001_test.sql:31: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1800 AND id % 2 = 0 ORDER BY id LIMIT 200
-psql:sql/001_test.sql:31: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 2000 AND id % 2 = 0 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:34: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1000 AND id % 2 = 0 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:34: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1400 AND id % 2 = 0 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:34: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1800 AND id % 2 = 0 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:34: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 2000 AND id % 2 = 0 ORDER BY id LIMIT 200
 CALL
 CALL start(3);
-psql:sql/001_test.sql:32: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 999 AND id % 2 = 1 ORDER BY id LIMIT 200
-psql:sql/001_test.sql:32: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1399 AND id % 2 = 1 ORDER BY id LIMIT 200
-psql:sql/001_test.sql:32: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1799 AND id % 2 = 1 ORDER BY id LIMIT 200
-psql:sql/001_test.sql:32: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1999 AND id % 2 = 1 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:35: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 999 AND id % 2 = 1 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:35: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1399 AND id % 2 = 1 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:35: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1799 AND id % 2 = 1 ORDER BY id LIMIT 200
+psql:sql/001_test.sql:35: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1999 AND id % 2 = 1 ORDER BY id LIMIT 200
 CALL
 SELECT run_id, job_id, config_id, lastseq, rows, state 
   FROM job WHERE run_id = 1 ORDER BY job_id;

@@ -10,6 +10,9 @@ SELECT * FROM config;
 
 SELECT target, statement FROM run();
 
+-- "report" view shows the aggregated state for each target table 
+SELECT * FROM report WHERE run_id = 1;
+
 -- start(1) should truncate public.t1 as configured
 CALL start(1);
 

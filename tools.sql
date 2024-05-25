@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS job (
     config_id bigint not null references config(config_id) on delete cascade,
     lastseq bigint not null default 0,
     rows bigint not null default 0,
-    elapsed interval not null default '0'::interval,
+    elapsed interval,
     ts timestamp,
     state state not null default 'pending',
     PRIMARY KEY (run_id, job_id)
