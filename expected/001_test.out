@@ -1,20 +1,20 @@
-INSERT INTO tools.config (relname, source, pkey, condition, batchsize, trunc) VALUES
+INSERT INTO tools.config (source, target, pkey, condition, batchsize, trunc) VALUES
 -- t1 will be copied in a single operation
-    ('public.t1', 'source.t1', 'id', null, null, true),
+    ('source.t1', 'public.t1', 'id', null, null, true),
 -- t2 will be dispatched to two jobs, each will insert data with a batch size of 200
-    ('public.t2', 'source.t2', 'id', 'id % 2 = 0', 200, false),
-    ('public.t2', 'source.t2', 'id', 'id % 2 = 1', 200, false);
+    ('source.t2', 'public.t2', 'id', 'id % 2 = 0', 200, false),
+    ('source.t2', 'public.t2', 'id', 'id % 2 = 1', 200, false);
 INSERT 0 3
 SELECT * FROM config;
- config_id |  relname  |  source   | pkey | condition  | batchsize | trunc 
+ config_id |  source   |  target   | pkey | condition  | batchsize | trunc 
 -----------+-----------+-----------+------+------------+-----------+-------
-         1 | public.t1 | source.t1 | id   |            |           | t
-         2 | public.t2 | source.t2 | id   | id % 2 = 0 |       200 | f
-         3 | public.t2 | source.t2 | id   | id % 2 = 1 |       200 | f
+         1 | source.t1 | public.t1 | id   |            |           | t
+         2 | source.t2 | public.t2 | id   | id % 2 = 0 |       200 | f
+         3 | source.t2 | public.t2 | id   | id % 2 = 1 |       200 | f
 (3 rows)
 
-SELECT relname, statement FROM run();
-  relname  |      statement       
+SELECT target, statement FROM run();
+  target   |      statement       
 -----------+----------------------
  public.t1 | CALL tools.start(1);
  public.t2 | CALL tools.start(2);
@@ -68,8 +68,8 @@ psql:sql/001_test.sql:26: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, n
 psql:sql/001_test.sql:26: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, ts FROM source.t2 WHERE id > 1799 AND id % 2 = 1 ORDER BY id LIMIT 200
 psql:sql/001_test.sql:26: NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, ts FROM source.t2 WHERE id > 1999 AND id % 2 = 1 ORDER BY id LIMIT 200
 CALL
-SELECT run_id, relname, rows FROM report ORDER BY relname;
- run_id |  relname  | rows 
+SELECT run_id, target, rows FROM report ORDER BY target;
+ run_id |  target   | rows 
 --------+-----------+------
       1 | public.t1 |  100
       1 | public.t2 | 2000

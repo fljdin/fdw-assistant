@@ -6,8 +6,8 @@ SET search_path = tools;
 -- "config" table represents the configuration of relation
 CREATE TABLE IF NOT EXISTS config (
     config_id bigint generated always as identity primary key,
-    relname regclass not null,
     source regclass not null,
+    target regclass not null,
     pkey text not null,
     condition text,
     batchsize integer,
@@ -48,7 +48,7 @@ BEGIN
         JOIN tools.config USING (config_id)
         WHERE job_id = p_id;
     IF r.trunc THEN
-        stmt := format('TRUNCATE %s', r.relname);
+        stmt := format('TRUNCATE %s', r.target);
         r.lastseq := 0;
         r.elapsed := '0';
         r.rows := 0;
@@ -59,9 +59,9 @@ BEGIN
 
     LOOP
         -- Build INSERT statement
-        SELECT statement INTO stmt FROM tools.extract(r.relname, r.source);
+        SELECT statement INTO stmt FROM tools.extract(r.target, r.source);
         stmt := format('INSERT INTO %1$s %2$s WHERE %3$s > %4$s %5$s ORDER BY %3$s %6$s',
-            r.relname, stmt, r.pkey, r.lastseq,
+            r.target, stmt, r.pkey, r.lastseq,
             CASE WHEN r.condition IS NOT NULL THEN format('AND %s', r.condition) ELSE '' END,
             CASE WHEN r.batchsize IS NOT NULL THEN format('LIMIT %s', r.batchsize) ELSE '' END
         );
@@ -97,20 +97,20 @@ $$;
 
 -- "extract" function returns SELECT statement for the source relation
 -- with the column names of the target relation
-CREATE OR REPLACE FUNCTION tools.extract(p_relname regclass, p_source regclass)
+CREATE OR REPLACE FUNCTION tools.extract(p_target regclass, p_source regclass)
 RETURNS TABLE (statement text)
 LANGUAGE SQL AS $$
     SELECT format('SELECT %s FROM %s', string_agg(format('%s', attname), ', '), p_source)
       FROM pg_attribute
-     WHERE attrelid = p_relname
+     WHERE attrelid = p_target
        AND attnum > 0 AND NOT attisdropped
-     GROUP BY p_relname;
+     GROUP BY p_target;
 $$;
 
 -- "run" function inserts a new run record
 -- and returns the statements to execute
 CREATE OR REPLACE FUNCTION tools.run()
-RETURNS TABLE (statement text, relname regclass)
+RETURNS TABLE (statement text, target regclass)
 LANGUAGE SQL AS $$
     WITH new_run AS (
         INSERT INTO tools.run DEFAULT VALUES
@@ -122,7 +122,7 @@ LANGUAGE SQL AS $$
             CROSS JOIN new_run
         RETURNING job_id, config_id
     )
-    SELECT format('CALL tools.start(%s);', job_id), relname
+    SELECT format('CALL tools.start(%s);', job_id), target
       FROM new_job
       JOIN tools.config USING (config_id);
 $$;
@@ -130,10 +130,10 @@ $$;
 -- "report" view returns the state of the last run for each relation
 -- with a special column "rate" that shows the number of rows per second
 CREATE OR REPLACE VIEW tools.report AS
-SELECT r.run_id, c.relname, min(j.ts) job_start, sum(j.rows) rows, max(j.elapsed) elapsed,
+SELECT r.run_id, c.target, min(j.ts) job_start, sum(j.rows) rows, max(j.elapsed) elapsed,
        sum(round(j.rows / extract(epoch from j.elapsed), 2)) AS rate
   FROM tools.job j
   JOIN tools.config c USING (config_id)
   JOIN tools.run r USING (run_id)
  WHERE elapsed > '0'::interval
- GROUP BY r.run_id, c.relname;
+ GROUP BY r.run_id, c.target;
