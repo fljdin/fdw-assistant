@@ -3,11 +3,11 @@ UPDATE 1
 INSERT INTO source.t2 (id, age, name) SELECT 2002, 2^(16-1), 'foo';
 INSERT 0 1
 SELECT target, statement FROM plan();
-  target   |      statement      
------------+---------------------
- public.t2 | CALL tools.copy(5);
- public.t2 | CALL tools.copy(6);
- public.t1 | CALL tools.copy(4);
+  target   |     statement     
+-----------+-------------------
+ public.t2 | CALL fdw.copy(5);
+ public.t2 | CALL fdw.copy(6);
+ public.t1 | CALL fdw.copy(4);
 (3 rows)
 
 -- copy(4) should fail because of the NOT NULL constraint

@@ -1,7 +1,6 @@
 \set ON_ERROR_STOP on
 
-CREATE SCHEMA IF NOT EXISTS tools;
-SET search_path = tools;
+CREATE SCHEMA IF NOT EXISTS fdw;
 
 -- "state" enum represents the state of a job
 DO $$
@@ -44,7 +43,7 @@ CREATE TABLE IF NOT EXISTS job (
 
 -- "copy" procedure transfers data from source to target
 -- using the configuration in the "job" table
-CREATE OR REPLACE PROCEDURE tools.copy(p_id bigint)
+CREATE OR REPLACE PROCEDURE copy(p_id bigint)
 LANGUAGE plpgsql AS $$
 DECLARE
     r record;
@@ -56,7 +55,7 @@ DECLARE
     v_start timestamp;
 BEGIN
     SELECT * INTO r
-        FROM tools.job JOIN tools.config USING (config_id)
+        FROM fdw.job JOIN fdw.config USING (config_id)
         WHERE job_id = p_id;
 
     -- Raise an exception if the job does not exist
@@ -73,14 +72,14 @@ BEGIN
     END IF;
 
     -- Update job record on start
-    UPDATE tools.job
+    UPDATE fdw.job
         SET state = 'running', ts = COALESCE(ts, clock_timestamp())
         WHERE job_id = r.job_id;
     COMMIT;
 
     LOOP
         -- Build INSERT statement
-        SELECT statement INTO stmt FROM tools.extract(r.target, r.source);
+        SELECT statement INTO stmt FROM fdw.columns(r.target, r.source);
         stmt := format('INSERT INTO %1$s %2$s WHERE %3$s > %4$s %5$s ORDER BY %3$s %6$s',
             r.target, stmt, r.pkey, r.lastseq,
             CASE WHEN r.condition IS NOT NULL THEN format('AND %s', r.condition) ELSE '' END,
@@ -110,7 +109,7 @@ BEGIN
         r.elapsed := COALESCE(r.elapsed, '0') + v_elapsed;
         r.rows := r.rows + v_rows;
 
-        UPDATE tools.job
+        UPDATE fdw.job
             SET lastseq = r.lastseq, rows = r.rows, elapsed = r.elapsed
             WHERE job_id = r.job_id;
         COMMIT;
@@ -119,7 +118,7 @@ BEGIN
     END LOOP;
 
     -- Update job record on completion
-    UPDATE tools.job 
+    UPDATE fdw.job 
         SET state = r.state 
         WHERE job_id = r.job_id;
     COMMIT;
@@ -130,9 +129,9 @@ BEGIN
 END;
 $$;
 
--- "extract" function returns SELECT statement for the source relation
+-- "columns" function returns SELECT statement for the source relation
 -- with the column names of the target relation
-CREATE OR REPLACE FUNCTION tools.extract(p_target regclass, p_source regclass)
+CREATE OR REPLACE FUNCTION columns(p_target regclass, p_source regclass)
 RETURNS TABLE (statement text)
 LANGUAGE SQL AS $$
     SELECT format('SELECT %s FROM %s', string_agg(format('%I', attname), ', '), p_source)
@@ -144,44 +143,44 @@ $$;
 
 -- "plan" function inserts a new stage record and returns the statements to execute
 -- "targets" parameter is used to filter the target relations
-CREATE OR REPLACE FUNCTION tools.plan(targets text[] DEFAULT '{}'::text[])
+CREATE OR REPLACE FUNCTION plan(targets text[] DEFAULT '{}'::text[])
 RETURNS TABLE (statement text, target regclass)
 LANGUAGE SQL AS $$
     WITH targets AS (
         SELECT s::regclass AS target
         FROM unnest(targets) s
         UNION
-        SELECT DISTINCT target FROM tools.config
+        SELECT DISTINCT target FROM fdw.config
         WHERE cardinality(targets) = 0
     ), new_stage AS (
-        INSERT INTO tools.stage DEFAULT VALUES
+        INSERT INTO fdw.stage DEFAULT VALUES
         RETURNING stage_id
     ), new_jobs AS (
-        INSERT INTO tools.job (stage_id, config_id, lastseq)
+        INSERT INTO fdw.job (stage_id, config_id, lastseq)
             -- Get the last sequence number from the last stage
             -- if target may not be truncated. Otherwise, use 0
             SELECT stage_id, config_id, COALESCE(
-                (SELECT max(lastseq) FROM tools.job
-                   JOIN tools.config USING (config_id)
+                (SELECT max(lastseq) FROM fdw.job
+                   JOIN fdw.config USING (config_id)
                   WHERE config_id = c.config_id AND NOT trunc), 0)
-            FROM tools.config c
+            FROM fdw.config c
             JOIN targets USING (target)
             CROSS JOIN new_stage
         RETURNING job_id, config_id
     )
-    SELECT format('CALL tools.copy(%s);', job_id), target
+    SELECT format('CALL fdw.copy(%s);', job_id), target
       FROM new_jobs
-      JOIN tools.config USING (config_id)
+      JOIN fdw.config USING (config_id)
       ORDER BY priority, job_id;
 $$;
 
 -- "report" view returns the state of the last stage for each relation
 -- with a special column "rate" that shows the number of rows per second
-CREATE OR REPLACE VIEW tools.report AS
+CREATE OR REPLACE VIEW report AS
 SELECT r.stage_id, c.target, min(j.ts) job_start, min(j.state) state,
        sum(j.rows) rows, max(j.elapsed) elapsed,
        sum(round(j.rows / extract(epoch from j.elapsed), 2)) AS rate
-  FROM tools.job j
-  JOIN tools.config c USING (config_id)
-  JOIN tools.stage r USING (stage_id)
+  FROM job j
+  JOIN config c USING (config_id)
+  JOIN stage r USING (stage_id)
  GROUP BY r.stage_id, c.target;

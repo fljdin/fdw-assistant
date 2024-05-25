@@ -15,11 +15,11 @@ SELECT * FROM config;
 
 -- "plan" must order the jobs by priority (lower first)
 SELECT target, statement FROM plan();
-  target   |      statement      
------------+---------------------
- public.t2 | CALL tools.copy(2);
- public.t2 | CALL tools.copy(3);
- public.t1 | CALL tools.copy(1);
+  target   |     statement     
+-----------+-------------------
+ public.t2 | CALL fdw.copy(2);
+ public.t2 | CALL fdw.copy(3);
+ public.t1 | CALL fdw.copy(1);
 (3 rows)
 
 -- "report" view shows the aggregated state for each target table

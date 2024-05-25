@@ -1,5 +1,5 @@
 export PGDATABASE = test
-export PGOPTIONS  = --search_path=tools
+export PGOPTIONS  = --search_path=fdw
 export PSQL_PAGER =
 
 SQL := $(wildcard sql/*_test.sql)
@@ -13,7 +13,7 @@ setup:
 	@mkdir -p results
 	@dropdb --if-exists $(PGDATABASE)
 	@createdb
-	@psql -qf tools.sql
+	@psql -qf fdw-assistant.sql
 	@psql -qf sql/testdata.sql
 
 results/%_test.out: sql/%_test.sql setup

@@ -1,20 +1,20 @@
-# tools
+# Foreign Data Wrapper Assistant
 
-Orchestrate data migration from source tables to target tables with a simple
-configuration table. The relations must exist and should be defined with the
-same columns in no particular order.
+Orchestrate data transfer from foreign (source) tables to target tables with a
+simple configuration table. The relations must exist and should be defined with
+the same columns in no particular order.
 
-Tools provide:
+`fdw-assistant` provides:
 
 - a convenient way to build new **stages** based on configuration, composed by
   jobs attached to every configured source-to-table.
 - a **report** view that aggregate **job** status per **stage**
 - a variety of options in the central **config** table
 
-Tools have been designed to be used by a multiple processus orchestrator, as
-`xargs` or [`dispatch`][dispatch] commands. In that way, a source table could be
-processed in parallel by defining a modulus condition to split data in distinct
-subsets.
+`fdw-assistant` has been designed to be used by a multiple processus
+orchestrator, as `xargs` or [`dispatch`][dispatch] commands. In that way, a
+source table could be processed in parallel by defining a modulus condition to
+split data in distinct subsets.
 
 [dispatch]: https://github.com/fljdin/dispatch
 
@@ -57,7 +57,7 @@ VALUES
   ('source.t1', 'public.t1', 'id', 100, null, null, true);
 
 -- t2 will be dispatched to two jobs, each will insert data with a batch size of 200
-INSERT INTO tools.config
+INSERT INTO fdw.config
   (source, target, pkey, priority, condition, batchsize, trunc)
 VALUES
   ('source.t2', 'public.t2', 'id', 1, 'id % 2 = 0', 200, false),
