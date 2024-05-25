@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS job (
     lastseq bigint not null default 0,
     rows bigint not null default 0,
     elapsed interval not null default '0'::interval,
+    ts timestamp,
     PRIMARY KEY (run_id, job_id)
 );
 
@@ -71,6 +72,11 @@ BEGIN
 
         -- Execute INSERT statement
         v_start := clock_timestamp();
+
+        IF r.ts IS NULL THEN
+            UPDATE tools.job SET ts = v_start WHERE job_id = r.job_id;
+        END IF;
+
         EXECUTE stmt INTO r.lastseq, v_rows;
         EXIT WHEN v_rows = 0;
 
@@ -134,7 +140,7 @@ $$;
 -- "report" view returns the state of the last run for each relation
 -- with a special column "rate" that shows the number of rows per second
 CREATE OR REPLACE VIEW tools.report AS
-SELECT r.run_id, c.relname, min(r.ts) run_start, sum(j.rows) rows, max(j.elapsed) elapsed,
+SELECT r.run_id, c.relname, min(j.ts) job_start, sum(j.rows) rows, max(j.elapsed) elapsed,
        sum(round(j.rows / extract(epoch from j.elapsed), 2)) AS rate
   FROM tools.job j
   JOIN tools.config c USING (config_id)
