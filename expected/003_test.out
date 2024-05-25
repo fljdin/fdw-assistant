@@ -1,8 +1,8 @@
 -- Should return a single job for public.t1
 SELECT target, statement FROM plan('{public.t1}');
-  target   |      statement       
------------+----------------------
- public.t1 | CALL tools.start(7);
+  target   |      statement      
+-----------+---------------------
+ public.t1 | CALL tools.copy(7);
 (1 row)
 
 SELECT run_id, job_id, config_id, lastseq, rows, state
@@ -14,11 +14,11 @@ SELECT run_id, job_id, config_id, lastseq, rows, state
 
 -- Should return all jobs
 SELECT target, statement FROM plan();
-  target   |       statement       
------------+-----------------------
- public.t2 | CALL tools.start(9);
- public.t2 | CALL tools.start(10);
- public.t1 | CALL tools.start(8);
+  target   |      statement       
+-----------+----------------------
+ public.t2 | CALL tools.copy(9);
+ public.t2 | CALL tools.copy(10);
+ public.t1 | CALL tools.copy(8);
 (3 rows)
 
 SELECT run_id, job_id, config_id, lastseq, rows, state

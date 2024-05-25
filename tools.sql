@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS config (
     trunc boolean not null default true
 );
 
--- "run" table represents each from-scratch execution
+-- "run" table represents a execution of several jobs
 CREATE TABLE IF NOT EXISTS run (
     run_id bigint generated always as identity primary key,
     ts timestamp default now()
@@ -42,9 +42,9 @@ CREATE TABLE IF NOT EXISTS job (
     PRIMARY KEY (run_id, job_id)
 );
 
--- "start" procedure copies data from source to target
+-- "copy" procedure transfers data from source to target
 -- using the configuration in the "job" table
-CREATE OR REPLACE PROCEDURE tools.start(p_id bigint)
+CREATE OR REPLACE PROCEDURE tools.copy(p_id bigint)
 LANGUAGE plpgsql AS $$
 DECLARE
     r record;
@@ -169,7 +169,7 @@ LANGUAGE SQL AS $$
             CROSS JOIN new_run
         RETURNING job_id, config_id
     )
-    SELECT format('CALL tools.start(%s);', job_id), target
+    SELECT format('CALL tools.copy(%s);', job_id), target
       FROM new_jobs
       JOIN tools.config USING (config_id)
       ORDER BY priority, job_id;

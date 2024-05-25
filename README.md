@@ -69,20 +69,20 @@ VALUES
 **plan(targets text[])** function
 
 * `plan()` prepares a new run by creating `run` and `job` records and returns a
-  set of `CALL start()` statements in order of configured priority.
+  set of `CALL copy()` statements in order of configured priority.
 
 * `targets` parameter is an array of target relation names used as filter. If
   empty, all relations in the `config` table are used as targets.
 
 * A table with `trunc` option will be truncated at the beginning of a new run.
 
-**start(job_id bigint)** procedure
+**copy(job_id bigint)** procedure
 
-* `start()` handles `INSERT` statement build and execution, updates its own job
+* `copy()` handles `INSERT` statement build and execution, updates its own job
   record during bulk insertion batches and at the end with `success` or `failed`
   status.
 
-* The same `start(job_id)` statement can be executed several times without
+* The same `copy(job_id)` statement can be executed several times without
   truncating a table with `trunc` option. This behavior is intended to resume
   the job from the last known sequence in case of unintentional interruption.
 
@@ -95,7 +95,7 @@ VALUES
 * `failed`: a error has been raised, the job stopped in the middle of a batch
   and rollbacked his current task.
 
-* `pending`: a job has been prepared by the `plan()` procedure but the `start()`
+* `pending`: a job has been prepared by the `plan()` procedure but the `copy()`
   has not been called yet.
 
 * `completed`: a job has processed the data transfert successfully.
@@ -131,7 +131,7 @@ VALUES
 * `run_id` (type `bigint`): Identifier of the run that job belongs to.
 
 * `job_id` (type `bigint`): A unique identifier to manipulate the job with
-  `start()` procedure.
+  `copy()` procedure.
 
 * `config_id` (type `bigint`): Identifier of the configuration attached to the
   job.

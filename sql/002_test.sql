@@ -4,17 +4,17 @@ INSERT INTO source.t2 (id, age, name) SELECT 2002, 2^(16-1), 'foo';
 
 SELECT target, statement FROM plan();
 
--- start(4) should fail because of the NOT NULL constraint
-CALL start(4);
+-- copy(4) should fail because of the NOT NULL constraint
+CALL copy(4);
 
--- start(5) should fail because of out of range value
-CALL start(5);
+-- copy(5) should fail because of out of range value
+CALL copy(5);
 
--- start(7) should fail because job_id does not exist
-CALL start(7);
+-- copy(7) should fail because job_id does not exist
+CALL copy(7);
 
--- start(6) should succeed
-CALL start(6);
+-- copy(6) should succeed
+CALL copy(6);
 
 SELECT run_id, job_id, config_id, lastseq, rows, state
   FROM job WHERE run_id = 2;
