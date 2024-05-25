@@ -8,9 +8,9 @@ BEGIN
 IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'state') THEN
     CREATE TYPE state AS ENUM ('running', 'failed', 'pending', 'completed');
 END IF;
-END$$;
+END $$;
 
--- "config" table represents the configuration of relation
+-- "config" table represents the main configuration
 CREATE TABLE IF NOT EXISTS config (
     source regclass not null,
     target regclass not null,
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS config (
     PRIMARY KEY (source, target)
 );
 
--- "stage" table represents a execution of several jobs
+-- "stage" table represents an execution of several jobs
 CREATE TABLE IF NOT EXISTS stage (
     stage_id bigint generated always as identity primary key,
     ts timestamp default now()
@@ -51,12 +51,12 @@ CREATE TABLE IF NOT EXISTS task (
     source regclass not null,
     target regclass not null,
     pkey text not null,
-    trunc boolean not null default true
+    trunc boolean not null default true,
     condition text,
-    batchsize integer,
+    batchsize integer
 );
 
-CREATE INDEX ON task(job_id);
+CREATE UNIQUE INDEX ON task(job_id);
 
 -- "report" view returns the state of the last stage for each relation
 -- with a special column "rate" that shows the number of rows per second
@@ -67,6 +67,24 @@ SELECT s.stage_id, j.target, min(j.ts) job_start, min(j.state) state,
   FROM job j
   JOIN stage s USING (stage_id)
  GROUP BY s.stage_id, j.target;
+
+-- "columns" function returns SELECT statement for the source relation
+-- with the column names of the target relation
+CREATE OR REPLACE FUNCTION columns(p_target regclass, p_source regclass)
+RETURNS TABLE (statement text)
+LANGUAGE SQL AS $$
+    SELECT format('SELECT %s FROM %s', string_agg(format('%I', attname), ', '), p_source)
+      FROM pg_attribute
+     WHERE attrelid = p_target
+       AND attnum > 0 AND NOT attisdropped
+     GROUP BY p_target;
+$$;
+
+-- "lastseq" function return the upper sequence number from the previous stages
+CREATE OR REPLACE FUNCTION lastseq(p_target regclass, p_part integer)
+RETURNS bigint LANGUAGE sql AS
+$$ SELECT COALESCE(MAX(lastseq), 0) FROM job 
+    WHERE target = p_target AND part = p_part $$;
 
 -- "plan" function prepares a new stage by creating new job and task records
 -- "targets" parameter is used to filter the target relations
@@ -195,21 +213,3 @@ BEGIN
     END IF;
 END;
 $$;
-
--- "columns" function returns SELECT statement for the source relation
--- with the column names of the target relation
-CREATE OR REPLACE FUNCTION columns(p_target regclass, p_source regclass)
-RETURNS TABLE (statement text)
-LANGUAGE SQL AS $$
-    SELECT format('SELECT %s FROM %s', string_agg(format('%I', attname), ', '), p_source)
-      FROM pg_attribute
-     WHERE attrelid = p_target
-       AND attnum > 0 AND NOT attisdropped
-     GROUP BY p_target;
-$$;
-
--- "lastseq" function return the upper sequence number from the previous stages
-CREATE OR REPLACE FUNCTION lastseq(p_target regclass, p_part integer)
-RETURNS bigint LANGUAGE sql AS
-$$ SELECT COALESCE(MAX(lastseq), 0) FROM job 
-    WHERE target = p_target AND part = p_part $$;
