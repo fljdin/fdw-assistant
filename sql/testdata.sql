@@ -26,8 +26,22 @@ CREATE TABLE public.t2 (
     age smallint not null
 );
 
+-- withkeywords table is used to test reserved keywords
+-- in "extract" method
+CREATE TABLE source.withkeywords (
+    id serial primary key,
+    "limit" integer not null
+);
+
+CREATE TABLE public.withkeywords (
+    id serial primary key,
+    "limit" integer not null
+);
+
 INSERT INTO source.t1 (id, name) 
     SELECT i, 'name' || i FROM generate_series(1, 100) i;
 
 INSERT INTO source.t2 (id, age, name)
     SELECT i, i, 'name' || i FROM generate_series(1, 1000) i;
+
+INSERT INTO source.withkeywords (id, "limit") VALUES (1, 1);
