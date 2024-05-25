@@ -71,10 +71,10 @@ BEGIN
         EXECUTE stmt;
     END IF;
 
-    v_start := clock_timestamp();
     UPDATE tools.job 
-        SET state = 'running', ts = COALESCE(ts, v_start)
+        SET state = 'running', ts = COALESCE(ts, clock_timestamp())
         WHERE job_id = r.job_id;
+    COMMIT;
 
     LOOP
         -- Build INSERT statement
@@ -90,6 +90,7 @@ BEGIN
         );
 
         -- Execute INSERT statement
+        v_start := clock_timestamp();
         BEGIN
             EXECUTE stmt INTO r.lastseq, v_rows;
             r.state := 'completed';
@@ -104,12 +105,13 @@ BEGIN
 
         -- Update job record
         v_elapsed := clock_timestamp() - v_start;
-        r.elapsed := r.elapsed + v_elapsed;
+        r.elapsed := COALESCE(r.elapsed, '0') + v_elapsed;
         r.rows := r.rows + v_rows;
 
         UPDATE tools.job
             SET lastseq = r.lastseq, rows = r.rows, elapsed = r.elapsed
             WHERE job_id = r.job_id;
+        COMMIT;
 
         EXIT WHEN r.batchsize IS NULL;
     END LOOP;
