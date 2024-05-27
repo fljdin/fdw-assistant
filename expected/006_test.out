@@ -9,10 +9,10 @@ SELECT * FROM config WHERE target = 'public.t3'::regclass;
 (1 row)
 
 SELECT invocation FROM plan('{public.t3}');
-     invocation     
---------------------
- CALL fdw.copy(10);
- CALL fdw.copy(11);
+        invocation        
+--------------------------
+ CALL assistant.copy(10);
+ CALL assistant.copy(11);
 (2 rows)
 
 -- copy(10) and copy(11) should copy the positive values from source.t3

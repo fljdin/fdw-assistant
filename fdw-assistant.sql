@@ -143,7 +143,7 @@ SET search_path = :INSTALL LANGUAGE SQL AS $$
             JOIN config c USING (target)
             RETURNING job_id, target
     )
-    SELECT target, format('CALL fdw.copy(%s);', job_id)
+    SELECT target, format('CALL %s.copy(%s);', current_setting('search_path'), job_id)
       FROM new_tasks;
 $$;
 
@@ -168,7 +168,7 @@ BEGIN
     -- > execute transaction control statements Source
     -- https://www.postgresql.org/docs/current/sql-createprocedure.html
     v_schema := current_setting('assistant.search_path');
-    EXECUTE format('SET LOCAL search_path TO %I', v_schema);
+    EXECUTE format('SET search_path TO %I', v_schema);
 
     SELECT * INTO r
         FROM job JOIN task USING (job_id)

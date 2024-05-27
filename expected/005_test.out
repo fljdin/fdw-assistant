@@ -3,10 +3,10 @@ UPDATE config SET parts = 1;
 UPDATE 3
 -- we want to plan the next stage with one single job per target copy
 SELECT target, invocation FROM plan('{public.t1, public.t2}');
-  target   |    invocation     
------------+-------------------
- public.t2 | CALL fdw.copy(8);
- public.t1 | CALL fdw.copy(9);
+  target   |       invocation        
+-----------+-------------------------
+ public.t2 | CALL assistant.copy(8);
+ public.t1 | CALL assistant.copy(9);
 (2 rows)
 
 -- stage #1 had 3 jobs, stage #6 gets 2 jobs

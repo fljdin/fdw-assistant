@@ -3,11 +3,11 @@ UPDATE 1
 INSERT INTO source.t2 (id, age, name) SELECT 2002, 2^(16-1), 'foo';
 INSERT 0 1
 SELECT target, invocation FROM plan('{public.t1, public.t2}');
-  target   |    invocation     
------------+-------------------
- public.t2 | CALL fdw.copy(4);
- public.t2 | CALL fdw.copy(5);
- public.t1 | CALL fdw.copy(6);
+  target   |       invocation        
+-----------+-------------------------
+ public.t2 | CALL assistant.copy(4);
+ public.t2 | CALL assistant.copy(5);
+ public.t1 | CALL assistant.copy(6);
 (3 rows)
 
 -- copy(4) should fail because of out of range value

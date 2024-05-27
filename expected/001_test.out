@@ -13,11 +13,11 @@ SELECT * FROM config;
 
 -- "plan" must order the jobs by priority (lower first)
 SELECT target, invocation FROM plan();
-  target   |    invocation     
------------+-------------------
- public.t2 | CALL fdw.copy(1);
- public.t2 | CALL fdw.copy(2);
- public.t1 | CALL fdw.copy(3);
+  target   |       invocation        
+-----------+-------------------------
+ public.t2 | CALL assistant.copy(1);
+ public.t2 | CALL assistant.copy(2);
+ public.t1 | CALL assistant.copy(3);
 (3 rows)
 
 -- "report" view shows the aggregated state for each target table

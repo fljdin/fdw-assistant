@@ -2,9 +2,9 @@ INSERT INTO config (source, target, pkey, condition, batchsize, trunc) VALUES
     ('source.withkeywords', 'public.withkeywords', 'id', null, null, true);
 INSERT 0 1
 SELECT target, invocation FROM plan('{public.withkeywords}');
-       target        |    invocation     
----------------------+-------------------
- public.withkeywords | CALL fdw.copy(7);
+       target        |       invocation        
+---------------------+-------------------------
+ public.withkeywords | CALL assistant.copy(7);
 (1 row)
 
 -- copy(7) should succeed and "limit" must be quoted
