@@ -149,8 +149,8 @@ BEGIN
     END IF;
 
     -- Truncate the target relation if option is set
-    -- and the job has not been started yet
-    IF r.trunc AND r.ts IS NULL THEN
+    -- only one job whould truncate the target table (part = 0)
+    IF r.trunc AND r.ts IS NULL AND r.part = 0 THEN
         stmt := format('TRUNCATE %s', r.target);
         raise notice 'Executing: %', stmt;
         EXECUTE stmt;

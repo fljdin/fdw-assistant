@@ -1,0 +1,33 @@
+INSERT INTO config (source, target, pkey, priority, parts, trunc, condition, batchsize) VALUES
+-- t3 will be copied with a condition that filters negative values
+    ('source.t3', 'public.t3', 'id', 200, 2, true, 'value >= 0', null);
+INSERT 0 1
+SELECT * FROM config WHERE target = 'public.t3'::regclass;
+  source   |  target   | pkey | priority | parts | trunc | condition  | batchsize 
+-----------+-----------+------+----------+-------+-------+------------+-----------
+ source.t3 | public.t3 | id   |      200 |     2 | t     | value >= 0 |          
+(1 row)
+
+SELECT invocation FROM plan('{public.t3}');
+     invocation     
+--------------------
+ CALL fdw.copy(10);
+ CALL fdw.copy(11);
+(2 rows)
+
+-- copy(10) and copy(11) should copy the positive values from source.t3
+-- only job with part #0 should truncate the target table
+CALL copy(10);
+NOTICE:  Executing: TRUNCATE public.t3
+NOTICE:  Executing: INSERT INTO public.t3 SELECT id, value FROM source.t3 WHERE id > 0 AND id % 2 = 0 AND value >= 0 ORDER BY id 
+CALL
+CALL copy(11);
+NOTICE:  Executing: INSERT INTO public.t3 SELECT id, value FROM source.t3 WHERE id > 0 AND id % 2 = 1 AND value >= 0 ORDER BY id 
+CALL
+-- public.t3 should have 100 rows
+SELECT count(*) FROM public.t3;
+ count 
+-------
+   100
+(1 row)
+

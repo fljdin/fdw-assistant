@@ -2,13 +2,13 @@ INSERT INTO config (source, target, pkey, condition, batchsize, trunc) VALUES
     ('source.withkeywords', 'public.withkeywords', 'id', null, null, true);
 INSERT 0 1
 SELECT target, invocation FROM plan('{public.withkeywords}');
-       target        |     invocation     
----------------------+--------------------
- public.withkeywords | CALL fdw.copy(17);
+       target        |    invocation     
+---------------------+-------------------
+ public.withkeywords | CALL fdw.copy(7);
 (1 row)
 
--- copy(17) should succeed and "limit" must be quoted
-CALL copy(17);
+-- copy(7) should succeed and "limit" must be quoted
+CALL copy(7);
 NOTICE:  Executing: TRUNCATE public.withkeywords
 NOTICE:  Executing: INSERT INTO public.withkeywords SELECT id, "limit" FROM source.withkeywords WHERE id > 0  ORDER BY id 
 CALL

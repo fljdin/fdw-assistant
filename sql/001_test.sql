@@ -3,9 +3,7 @@ INSERT INTO config (source, target, pkey, priority, parts, trunc, condition, bat
 -- t1 will be copied in a single operation
     ('source.t1', 'public.t1', 'id', 100, 1, true, null, null),
 -- t2 will be dispatched to two jobs, each will insert data with a batch size of 200
-    ('source.t2', 'public.t2', 'id', 1, 2, false, null, 200),
--- t3 will be copied with a condition that filters negative values
-    ('source.t3', 'public.t3', 'id', 200, 2, true, 'value >= 0', null);
+    ('source.t2', 'public.t2', 'id', 1, 2, false, null, 200);
 
 SELECT * FROM config;
 
@@ -40,10 +38,6 @@ CALL copy(3);
 
 SELECT stage_id, job_id, target, part, lastseq, rows, state
   FROM job WHERE stage_id = 1 ORDER BY job_id;
-
--- copy(4) and copy(5) should copy the positive values from source.t3
-CALL copy(4);
-CALL copy(5);
 
 -- "report" view should compiles the state of the last stage for each relation
 SELECT stage_id, target, rows, state

@@ -4,5 +4,5 @@ INSERT INTO config (source, target, pkey, condition, batchsize, trunc) VALUES
 
 SELECT target, invocation FROM plan('{public.withkeywords}');
 
--- copy(17) should succeed and "limit" must be quoted
-CALL copy(17);
+-- copy(7) should succeed and "limit" must be quoted
+CALL copy(7);
