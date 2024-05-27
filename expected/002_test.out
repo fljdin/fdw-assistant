@@ -16,8 +16,8 @@ NOTICE:  Executing: SELECT count(id) FROM source.t2 WHERE id > 2000 AND id % 2 =
 NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 2000 AND id % 2 = 0 ORDER BY id LIMIT 200
 ERROR:  smallint out of range
 CONTEXT:  SQL statement "WITH inserted AS (INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 2000 AND id % 2 = 0 ORDER BY id LIMIT 200 RETURNING id) SELECT max(id) AS lastseq, count(*) AS rows FROM inserted"
-PL/pgSQL function copy(bigint) line 68 at EXECUTE
-CONTEXT:  PL/pgSQL function copy(bigint) line 99 at RAISE
+PL/pgSQL function copy(bigint) line 79 at EXECUTE
+CONTEXT:  PL/pgSQL function copy(bigint) line 110 at RAISE
 -- copy(5) should succeed
 CALL copy(5);
 NOTICE:  Executing: SELECT count(id) FROM source.t2 WHERE id > 1999 AND id % 2 = 1
@@ -30,8 +30,8 @@ NOTICE:  Executing: SELECT count(id) FROM source.t1 WHERE id > 0
 NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0  ORDER BY id 
 ERROR:  null value in column "name" of relation "t1" violates not-null constraint
 CONTEXT:  SQL statement "WITH inserted AS (INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0  ORDER BY id  RETURNING id) SELECT max(id) AS lastseq, count(*) AS rows FROM inserted"
-PL/pgSQL function copy(bigint) line 68 at EXECUTE
-CONTEXT:  PL/pgSQL function copy(bigint) line 99 at RAISE
+PL/pgSQL function copy(bigint) line 79 at EXECUTE
+CONTEXT:  PL/pgSQL function copy(bigint) line 110 at RAISE
 -- copy(100) should fail because job_id does not exist
 CALL copy(100);
 ERROR:  Job 100 not found

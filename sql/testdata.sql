@@ -65,3 +65,10 @@ CREATE TABLE public.dummy (
     id serial primary key,
     name text not null
 );
+
+-- "parent" and "child" are involved in a foreign key
+CREATE TABLE source.parent (id int);
+CREATE TABLE public.parent (id int primary key);
+
+CREATE TABLE source.child (id int, parent_id int);
+CREATE TABLE public.child (id int primary key, parent_id int not null references public.parent(id));

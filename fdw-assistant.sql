@@ -167,7 +167,15 @@ BEGIN
     IF r.trunc AND r.ts IS NULL AND r.part = 0 THEN
         stmt := format('TRUNCATE %s', r.target);
         raise notice 'Executing: %', stmt;
-        EXECUTE stmt;
+        BEGIN
+            EXECUTE stmt;
+        EXCEPTION WHEN OTHERS THEN
+            r.state := 'failed';
+            GET STACKED DIAGNOSTICS
+                v_ctx     = PG_EXCEPTION_CONTEXT,
+                v_message = MESSAGE_TEXT;
+            raise exception E'%\nCONTEXT:  %', v_message, v_ctx;
+        END;
     END IF;
 
     -- Update job record on start
@@ -243,7 +251,7 @@ BEGIN
     COMMIT;
 
     IF r.state = 'failed' THEN
-        RAISE E'%\nCONTEXT:  %', v_message, v_ctx;
+        raise exception E'%\nCONTEXT:  %', v_message, v_ctx;
     END IF;
 END;
 $$;
