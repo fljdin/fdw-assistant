@@ -19,17 +19,18 @@ and subsets could be processed in parallel.
 
 ## Installation
 
-Download the main file and execute it on a PostgreSQL database.
-It creates a dedicated schema, named `fdw` with relations and routines.
+Download the main file and execute it on a PostgreSQL database. It creates a
+dedicated schema (named `assistant` by default) with relations and routines.
+Use the `-v` flag with the `INSTALL` variable to change the schema name.
 
 ```sh
-psql -f fdw-assistant.sql
+psql -f fdw-assistant.sql -v INSTALL=assistant
 ```
 
 To remove the assistant, just drop the schema.
 
 ```sql
-DROP SCHEMA fdw CASCADE;
+DROP SCHEMA assistant CASCADE;
 ```
 
 ## Configuration

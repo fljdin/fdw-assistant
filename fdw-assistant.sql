@@ -1,12 +1,20 @@
 \set ON_ERROR_STOP on
+\if :{?INSTALL}
+\else
+\set INSTALL 'assistant'
+\endif
 
-CREATE SCHEMA IF NOT EXISTS fdw;
-SET search_path = fdw;
+CREATE SCHEMA IF NOT EXISTS :INSTALL;
+ALTER DATABASE :DBNAME SET assistant.search_path TO :INSTALL;
+SET search_path = :INSTALL;
 
 -- "state" enum represents the state of a job
 DO $$
 BEGIN
-IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'state') THEN
+IF NOT EXISTS (
+    SELECT typname, nspname FROM pg_type JOIN pg_namespace n ON typnamespace = n.oid 
+    WHERE typname = 'state' and nspname = current_setting('search_path')
+) THEN
     CREATE TYPE state AS ENUM ('running', 'failed', 'pending', 'completed');
 END IF;
 END $$;
@@ -67,10 +75,10 @@ SELECT r.*,
        CASE WHEN total IS NULL OR total = 0 THEN null
             ELSE trunc(rows / total, 2) END AS progress,
        CASE WHEN total IS NULL OR rate = 0 THEN null
-            ELSE format('%s hours', trunc(total / rate / 60 / 60, 2))::interval 
+            ELSE format('%s hours', trunc(total / rate / 60 / 60, 2))::interval
             END AS eti,
        CASE WHEN total IS NULL OR rate = 0 THEN null
-            ELSE job_start + format('%s hours', trunc(total / rate / 60 / 60, 2))::interval 
+            ELSE job_start + format('%s hours', trunc(total / rate / 60 / 60, 2))::interval
             END AS eta
   FROM (
     SELECT s.stage_id, j.target, min(j.ts) job_start, min(j.state) state,
@@ -95,27 +103,27 @@ $$;
 
 -- "lastseq" function return the upper sequence number from the previous stages
 CREATE OR REPLACE FUNCTION lastseq(p_target regclass, p_part integer)
-RETURNS bigint LANGUAGE sql AS
-$$ SELECT COALESCE(MAX(lastseq), 0) FROM job 
+RETURNS bigint SET search_path = :INSTALL LANGUAGE sql AS
+$$ SELECT COALESCE(MAX(lastseq), 0) FROM job
     WHERE target = p_target AND part = p_part $$;
 
 -- "plan" function prepares a new stage by creating new job and task records
 -- "targets" parameter is used to filter the target relations
 CREATE OR REPLACE FUNCTION plan(targets text[] DEFAULT '{}'::text[])
 RETURNS TABLE (target regclass, invocation text)
-LANGUAGE SQL AS $$
+SET search_path = :INSTALL LANGUAGE SQL AS $$
     WITH configs AS (
-        SELECT c.* AS target FROM fdw.config c
+        SELECT c.* AS target FROM config c
         JOIN unnest(targets) s ON c.target = s::regclass
         UNION
-        SELECT * FROM fdw.config
+        SELECT * FROM config
         WHERE cardinality(targets) = 0
         ORDER BY priority, condition
     ), new_stage AS (
-        INSERT INTO fdw.stage DEFAULT VALUES
+        INSERT INTO stage DEFAULT VALUES
         RETURNING stage_id
     ), new_jobs AS (
-        INSERT INTO fdw.job (stage_id, target, part, lastseq)
+        INSERT INTO job (stage_id, target, part, lastseq)
             SELECT stage_id, target, part,
                    CASE WHEN NOT trunc THEN lastseq(target, part) ELSE 0 END
             FROM new_stage CROSS JOIN (
@@ -124,15 +132,15 @@ LANGUAGE SQL AS $$
             ) c
         RETURNING job_id, target, part
     ), new_tasks AS (
-        INSERT INTO fdw.task(job_id, source, target, pkey, batchsize, trunc, condition)
+        INSERT INTO task(job_id, source, target, pkey, batchsize, trunc, condition)
             SELECT job_id, source, c.target, pkey, batchsize, trunc,
                 CASE WHEN c.parts = 1 THEN condition
-                     ELSE format('%s %% %s = %s%s', pkey, parts, part, 
-                        CASE WHEN condition IS NOT NULL 
-                             THEN format(' AND %s', condition) 
+                     ELSE format('%s %% %s = %s%s', pkey, parts, part,
+                        CASE WHEN condition IS NOT NULL
+                             THEN format(' AND %s', condition)
                              ELSE '' END) END
             FROM new_jobs j
-            JOIN fdw.config c USING (target)
+            JOIN config c USING (target)
             RETURNING job_id, target
     )
     SELECT target, format('CALL fdw.copy(%s);', job_id)
@@ -152,9 +160,18 @@ DECLARE
     v_rows bigint;
     v_total bigint;
     v_start timestamp;
+    v_schema text;
+
 BEGIN
+    -- As we make transaction control, we could not use a global SET
+    -- > If a SET clause is attached to a procedure, then that procedure cannot
+    -- > execute transaction control statements Source
+    -- https://www.postgresql.org/docs/current/sql-createprocedure.html
+    v_schema := current_setting('assistant.search_path');
+    EXECUTE format('SET LOCAL search_path TO %I', v_schema);
+
     SELECT * INTO r
-        FROM fdw.job JOIN fdw.task USING (job_id)
+        FROM job JOIN task USING (job_id)
         WHERE job_id = p_id;
 
     -- Raise an exception if the job does not exist
@@ -179,7 +196,7 @@ BEGIN
     END IF;
 
     -- Update job record on start
-    UPDATE fdw.job
+    UPDATE job
         SET state = 'running', ts = COALESCE(ts, clock_timestamp())
         WHERE job_id = r.job_id;
     COMMIT;
@@ -196,7 +213,7 @@ BEGIN
     v_elapsed := clock_timestamp() - v_start;
     r.elapsed := COALESCE(r.elapsed, '0') + v_elapsed;
 
-    UPDATE fdw.job 
+    UPDATE job
         SET total = COALESCE(r.total, 0) + v_total, elapsed = r.elapsed
         WHERE job_id = r.job_id;
     COMMIT;
@@ -206,7 +223,7 @@ BEGIN
         EXIT WHEN r.total = 0;
 
         -- Build INSERT statement
-        SELECT statement INTO stmt FROM fdw.columns(r.target, r.source);
+        SELECT statement INTO stmt FROM columns(r.target, r.source);
         stmt := format('INSERT INTO %1$s %2$s WHERE %3$s > %4$s %5$s ORDER BY %3$s %6$s',
             r.target, stmt, r.pkey, r.lastseq,
             CASE WHEN r.condition IS NOT NULL THEN format('AND %s', r.condition) ELSE '' END,
@@ -236,7 +253,7 @@ BEGIN
         r.elapsed := COALESCE(r.elapsed, '0') + v_elapsed;
         r.rows := r.rows + v_rows;
 
-        UPDATE fdw.job
+        UPDATE job
             SET lastseq = r.lastseq, rows = r.rows, elapsed = r.elapsed
             WHERE job_id = r.job_id;
         COMMIT;
@@ -245,8 +262,8 @@ BEGIN
     END LOOP;
 
     -- Update job record on completion
-    UPDATE fdw.job 
-        SET state = r.state 
+    UPDATE job
+        SET state = r.state
         WHERE job_id = r.job_id;
     COMMIT;
 
