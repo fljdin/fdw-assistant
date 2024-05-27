@@ -11,13 +11,13 @@ SELECT * FROM config;
 SELECT target, invocation FROM plan();
 
 -- "report" view shows the aggregated state for each target table
-SELECT * FROM report WHERE stage_id = 1;
+SELECT target, state, rows FROM report WHERE stage_id = 1;
 
 -- copy(1) and copy(2) should share an half of the data from source.t2
 CALL copy(1);
 CALL copy(2);
 
-SELECT stage_id, job_id, target, part, lastseq, rows, state
+SELECT stage_id, job_id, target, part, lastseq, rows, total, state
   FROM job WHERE stage_id = 1 ORDER BY job_id;
 
 INSERT INTO source.t2 (id, age, name)
@@ -27,7 +27,7 @@ INSERT INTO source.t2 (id, age, name)
 CALL copy(1);
 CALL copy(2);
 
-SELECT stage_id, job_id, target, part, lastseq, rows, state
+SELECT stage_id, job_id, target, part, lastseq, rows, total, state
   FROM job WHERE stage_id = 1 ORDER BY job_id;
 
 -- copy(3) should truncate public.t1 as it is a new stage
@@ -36,9 +36,9 @@ CALL copy(3);
 -- copy(3) should do nothing more because there is no new data in source.t1
 CALL copy(3);
 
-SELECT stage_id, job_id, target, part, lastseq, rows, state
+SELECT stage_id, job_id, target, part, lastseq, rows, total, state
   FROM job WHERE stage_id = 1 ORDER BY job_id;
 
 -- "report" view should compiles the state of the last stage for each relation
-SELECT stage_id, target, rows, state
+SELECT stage_id, target, rows, total, state
   FROM report WHERE stage_id = 1 ORDER BY target;

@@ -1,6 +1,7 @@
 \set ON_ERROR_STOP on
 
 CREATE SCHEMA IF NOT EXISTS fdw;
+SET search_path = fdw;
 
 -- "state" enum represents the state of a job
 DO $$
@@ -37,6 +38,7 @@ CREATE TABLE IF NOT EXISTS job (
     part integer not null default 0,
     lastseq bigint not null default 0,
     rows bigint not null default 0,
+    total bigint,
     elapsed interval,
     ts timestamp,
     state state not null default 'pending',
@@ -61,12 +63,23 @@ CREATE UNIQUE INDEX ON task(job_id);
 -- "report" view returns the state of the last stage for each relation
 -- with a special column "rate" that shows the number of rows per second
 CREATE OR REPLACE VIEW report AS
-SELECT s.stage_id, j.target, min(j.ts) job_start, min(j.state) state,
-       sum(j.rows) rows, max(j.elapsed) elapsed,
-       sum(round(j.rows / extract(epoch from j.elapsed), 2)) AS rate
-  FROM job j
-  JOIN stage s USING (stage_id)
- GROUP BY s.stage_id, j.target;
+SELECT r.*,
+       CASE WHEN total IS NULL OR total = 0 THEN null
+            ELSE trunc(rows / total, 2) END AS progress,
+       CASE WHEN total IS NULL OR rate = 0 THEN null
+            ELSE format('%s hours', trunc(total / rate / 60 / 60, 2))::interval 
+            END AS eti,
+       CASE WHEN total IS NULL OR rate = 0 THEN null
+            ELSE job_start + format('%s hours', trunc(total / rate / 60 / 60, 2))::interval 
+            END AS eta
+  FROM (
+    SELECT s.stage_id, j.target, min(j.ts) job_start, min(j.state) state,
+        sum(j.rows) rows, sum(j.total) total, max(j.elapsed) elapsed,
+        sum(round(j.rows / extract(epoch from j.elapsed), 2)) AS rate
+    FROM job j
+    JOIN stage s USING (stage_id)
+    GROUP BY s.stage_id, j.target
+  ) AS r;
 
 -- "columns" function returns SELECT statement for the source relation
 -- with the column names of the target relation
@@ -137,6 +150,7 @@ DECLARE
     v_elapsed interval;
     v_message text;
     v_rows bigint;
+    v_total bigint;
     v_start timestamp;
 BEGIN
     SELECT * INTO r
@@ -162,7 +176,27 @@ BEGIN
         WHERE job_id = r.job_id;
     COMMIT;
 
+    -- Retrieve the total number of rows to be copied
+    stmt := format('SELECT count(%2$s) FROM %1$s WHERE %2$s > %3$s %4$s',
+        r.source, r.pkey, r.lastseq,
+        CASE WHEN r.condition IS NOT NULL THEN format('AND %s', r.condition) ELSE '' END
+    );
+    raise notice 'Executing: %', stmt;
+
+    v_start := clock_timestamp();
+    EXECUTE stmt INTO v_total;
+    v_elapsed := clock_timestamp() - v_start;
+    r.elapsed := COALESCE(r.elapsed, '0') + v_elapsed;
+
+    UPDATE fdw.job 
+        SET total = COALESCE(r.total, 0) + v_total, elapsed = r.elapsed
+        WHERE job_id = r.job_id;
+    COMMIT;
+
     LOOP
+        -- Exit if there are no rows to copy
+        EXIT WHEN r.total = 0;
+
         -- Build INSERT statement
         SELECT statement INTO stmt FROM fdw.columns(r.target, r.source);
         stmt := format('INSERT INTO %1$s %2$s WHERE %3$s > %4$s %5$s ORDER BY %3$s %6$s',

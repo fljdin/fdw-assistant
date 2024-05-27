@@ -128,10 +128,19 @@ VALUES
 
 * `rows` (type `numeric`): Number of rows processed by the jobs so far.
 
+* `total` (type `numeric`): Number of rows to process by the jobs.
+
 * `elapsed` (type `interval`): Cumulative elapsed time spent by the jobs.
 
 * `rate` (type `numeric`): Calculated rate (rows per second) attached to a jobs,
   based on elapsed time and rows processed.
+
+* `progress` (type `numeric`): Calculated progression (from 0 to 1) based on
+  processed rows and total rows to process.
+
+* `eti` (type `interval`): Estimated time interval before completion.
+
+* `eta` (type `timestamp`): Estimated time of completion.
 
 **stage** table
 

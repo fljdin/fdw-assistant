@@ -10,5 +10,6 @@ SELECT target, invocation FROM plan('{public.withkeywords}');
 -- copy(7) should succeed and "limit" must be quoted
 CALL copy(7);
 NOTICE:  Executing: TRUNCATE public.withkeywords
+NOTICE:  Executing: SELECT count(id) FROM source.withkeywords WHERE id > 0 
 NOTICE:  Executing: INSERT INTO public.withkeywords SELECT id, "limit" FROM source.withkeywords WHERE id > 0  ORDER BY id 
 CALL
