@@ -47,11 +47,18 @@ CREATE TABLE source."MixedCaseTable" ("MixedCaseColumn" smallint);
 
 CREATE TABLE public."MixedCaseTable" ("MixedCaseColumn" smallint);
 
+CREATE TABLE source.dummy ();
+
+CREATE TABLE public.dummy ();
+
 INSERT INTO config (source, target, pkey, priority, parts, trunc, condition, batchsize) VALUES
   ('source.clients', 'public.clients', null, 1, 1, true, null, null),
   ('source.documents', 'public.documents', null, 2, 1, true, null, null),
-  ('source."MixedCaseTable"', 'public."MixedCaseTable"', null, 3, 1, true, null, null);
+  ('source."MixedCaseTable"', 'public."MixedCaseTable"', null, 3, 1, true, null, null),
+  ('source.dummy', 'public.dummy', null, 4, 1, true, 'must fail', null);
 
 SELECT * FROM config;
 
 SELECT invocation FROM plan() \gexec
+
+SELECT target, state, rows, total FROM report WHERE stage_id = 1 ORDER BY job_start;

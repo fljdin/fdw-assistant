@@ -1,15 +1,17 @@
 INSERT INTO config (source, target, pkey, priority, parts, trunc, condition, batchsize) VALUES
   ('source.clients', 'public.clients', null, 1, 1, true, null, null),
   ('source.documents', 'public.documents', null, 2, 1, true, null, null),
-  ('source."MixedCaseTable"', 'public."MixedCaseTable"', null, 3, 1, true, null, null);
-INSERT 0 3
+  ('source."MixedCaseTable"', 'public."MixedCaseTable"', null, 3, 1, true, null, null),
+  ('source.dummy', 'public.dummy', null, 4, 1, true, 'must fail', null);
+INSERT 0 4
 SELECT * FROM config;
          source          |         target          | pkey | priority | parts | trunc | condition | batchsize 
 -------------------------+-------------------------+------+----------+-------+-------+-----------+-----------
  source.clients          | public.clients          |      |        1 |     1 | t     |           |          
  source.documents        | public.documents        |      |        2 |     1 | t     |           |          
  source."MixedCaseTable" | public."MixedCaseTable" |      |        3 |     1 | t     |           |          
-(3 rows)
+ source.dummy            | public.dummy            |      |        4 |     1 | t     | must fail |          
+(4 rows)
 
 SELECT invocation FROM plan() \gexec
 CALL assistant.copy(1);
@@ -27,3 +29,18 @@ NOTICE:  Executing: TRUNCATE public."MixedCaseTable"
 NOTICE:  Executing: SELECT count(1) FROM source."MixedCaseTable" 
 NOTICE:  Executing: INSERT INTO public."MixedCaseTable" SELECT "MixedCaseColumn" FROM source."MixedCaseTable"   
 CALL
+CALL assistant.copy(4);
+NOTICE:  Executing: TRUNCATE public.dummy
+NOTICE:  Executing: SELECT count(1) FROM source.dummy WHERE must fail
+ERROR:  syntax error at or near "fail"
+CONTEXT:  PL/pgSQL function copy(bigint) line 70 at EXECUTE
+CONTEXT:  PL/pgSQL function copy(bigint) line 82 at RAISE
+SELECT target, state, rows, total FROM report WHERE stage_id = 1 ORDER BY job_start;
+         target          |   state   | rows | total 
+-------------------------+-----------+------+-------
+ public.clients          | completed |    0 |     0
+ public.documents        | completed |    0 |     0
+ public."MixedCaseTable" | completed |    0 |     0
+ public.dummy            | failed    |    0 |      
+(4 rows)
+
