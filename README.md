@@ -228,3 +228,46 @@ LATERAL pg_catalog.pg_options_to_table(a.attfdwoptions) op
 WHERE a.attnum > 0 AND NOT a.attisdropped
 AND op.option_name = 'key' AND op.option_value = 'true';
 ```
+
+**Feed the config table from public tables definition with single column key**
+
+```sql
+INSERT INTO config (target, source, pkey)
+SELECT format('%I.%I', n.nspname, c.relname), format('%I.%I', fn.nspname, cf.relname), MIN(a.attname)
+FROM pg_catalog.pg_class c
+INNER JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+INNER JOIN pg_index i ON c.oid = i.indrelid
+INNER JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) AND i.indisprimary
+INNER JOIN pg_catalog.pg_class cf ON cf.relname = c.relname
+INNER JOIN pg_catalog.pg_foreign_table ft ON ft.ftrelid = cf.oid
+INNER JOIN pg_catalog.pg_namespace fn ON fn.oid = cf.relnamespace
+WHERE n.nspname = 'public' AND c.relkind = 'r' AND cf.relkind = 'f'
+GROUP BY 1, 2 HAVING COUNT(1) = 1;
+```
+
+**Feed the config table from public tables definition**
+
+```sql
+INSERT INTO assistant.config (target, source)
+SELECT DISTINCT format('%I.%I', n.nspname, c.relname), format('%I.%I', fn.nspname, cf.relname)
+FROM pg_catalog.pg_class c
+INNER JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+INNER JOIN pg_catalog.pg_class cf ON cf.relname = c.relname
+INNER JOIN pg_catalog.pg_foreign_table ft ON ft.ftrelid = cf.oid
+INNER JOIN pg_catalog.pg_namespace fn ON fn.oid = cf.relnamespace
+WHERE n.nspname = 'public' AND c.relkind = 'r' AND cf.relkind = 'f';
+```
+
+**Add a conversion comment on all boolean columns from public tables definition**
+
+```sql
+SET search_path = source;
+SELECT format('COMMENT ON COLUMN %I.%I IS ''bool(%%s)''', c.relname, a.attname)
+FROM pg_catalog.pg_class c
+INNER JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+INNER JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid
+INNER JOIN pg_catalog.pg_type t ON t.oid = a.atttypid
+WHERE n.nspname = 'public'
+  AND c.relkind = 'r' AND t.typname = 'bool'
+  AND a.attnum > 0 AND NOT a.attisdropped \gexec
+```
