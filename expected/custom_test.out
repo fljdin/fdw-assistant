@@ -1,15 +1,22 @@
 INSERT INTO config (source, target, pkey, priority, parts, trunc, condition, batchsize) VALUES
-  ('source.clients', 'public.clients', null, 1, 1, true, null, null);
-INSERT 0 1
+  ('source.clients', 'public.clients', null, 1, 1, true, null, null),
+  ('source.documents', 'public.documents', null, 2, 1, true, null, null);
+INSERT 0 2
 SELECT * FROM config;
-     source     |     target     | pkey | priority | parts | trunc | condition | batchsize 
-----------------+----------------+------+----------+-------+-------+-----------+-----------
- source.clients | public.clients |      |        1 |     1 | t     |           |          
-(1 row)
+      source      |      target      | pkey | priority | parts | trunc | condition | batchsize 
+------------------+------------------+------+----------+-------+-------+-----------+-----------
+ source.clients   | public.clients   |      |        1 |     1 | t     |           |          
+ source.documents | public.documents |      |        2 |     1 | t     |           |          
+(2 rows)
 
 SELECT invocation FROM plan() \gexec
 CALL assistant.copy(1);
 NOTICE:  Executing: TRUNCATE public.clients
 NOTICE:  Executing: SELECT count(1) FROM source.clients 
-NOTICE:  Executing: INSERT INTO public.clients SELECT id, firstname, lastname, created_at, updated_at, is_active, is_imported, source, updated_by, imported_at, deleted_at FROM source.clients   
+NOTICE:  Executing: INSERT INTO public.clients SELECT id, firstname, lastname, created_at, updated_at, imported_at, deleted_at, updated_by, bool(is_active), bool(is_imported), source FROM source.clients   
+CALL
+CALL assistant.copy(2);
+NOTICE:  Executing: TRUNCATE public.documents
+NOTICE:  Executing: SELECT count(1) FROM source.documents 
+NOTICE:  Executing: INSERT INTO public.documents SELECT request::json FROM source.documents   
 CALL

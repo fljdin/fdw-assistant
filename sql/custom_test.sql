@@ -24,12 +24,12 @@ create table public.clients (
   lastname varchar(255) not null,
   created_at timestamp(0),
   updated_at timestamp(0),
+  imported_at timestamp(0),
+  deleted_at timestamp(0),
+  updated_by bigint,
   is_active boolean,
   is_imported boolean,
-  source varchar(255),
-  updated_by bigint,
-  imported_at timestamp(0),
-  deleted_at timestamp(0)
+  source varchar(255)
 );
 
 create table source.documents (request text);
@@ -40,7 +40,7 @@ create table public.documents (request json);
 
 INSERT INTO config (source, target, pkey, priority, parts, trunc, condition, batchsize) VALUES
   ('source.clients', 'public.clients', null, 1, 1, true, null, null),
-  ('source.documents', 'public.documents', null, 1, 1, true, null, null);
+  ('source.documents', 'public.documents', null, 2, 1, true, null, null);
 
 SELECT * FROM config;
 
