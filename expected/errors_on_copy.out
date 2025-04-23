@@ -40,21 +40,21 @@ SELECT target, invocation FROM plan('{public.t1, public.t2}');
 
 -- copy(1) should fail because of out of range value
 CALL copy(1);
-NOTICE:  Executing: SELECT count(id) FROM source.t2 WHERE id > 0 
-NOTICE:  Executing: INSERT INTO public.t2 SELECT id, age, name FROM source.t2 WHERE id > 0  ORDER BY id 
+NOTICE:  Executing: SELECT count(id) FROM source.t2 WHERE id > 0
+NOTICE:  Executing: INSERT INTO public.t2 SELECT id, age, name FROM source.t2 WHERE id > 0 ORDER BY id 
 ERROR:  smallint out of range
-CONTEXT:  SQL statement "WITH inserted AS (INSERT INTO public.t2 SELECT id, age, name FROM source.t2 WHERE id > 0  ORDER BY id  RETURNING id) SELECT max(id) AS lastseq, count(*) AS rows FROM inserted"
-PL/pgSQL function copy(bigint) line 88 at EXECUTE
-CONTEXT:  PL/pgSQL function copy(bigint) line 119 at RAISE
+CONTEXT:  SQL statement "WITH inserted AS (INSERT INTO public.t2 SELECT id, age, name FROM source.t2 WHERE id > 0 ORDER BY id  RETURNING id) SELECT max(id) AS lastseq, count(*) AS rows FROM inserted"
+PL/pgSQL function copy(bigint) line 104 at EXECUTE
+CONTEXT:  PL/pgSQL function copy(bigint) line 141 at RAISE
 -- copy(2) should fail because of the NOT NULL constraint
 CALL copy(2);
 NOTICE:  Executing: TRUNCATE public.t1
-NOTICE:  Executing: SELECT count(id) FROM source.t1 WHERE id > 0 
-NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0  ORDER BY id 
+NOTICE:  Executing: SELECT count(id) FROM source.t1 WHERE id > 0
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0 ORDER BY id 
 ERROR:  null value in column "name" of relation "t1" violates not-null constraint
-CONTEXT:  SQL statement "WITH inserted AS (INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0  ORDER BY id  RETURNING id) SELECT max(id) AS lastseq, count(*) AS rows FROM inserted"
-PL/pgSQL function copy(bigint) line 88 at EXECUTE
-CONTEXT:  PL/pgSQL function copy(bigint) line 119 at RAISE
+CONTEXT:  SQL statement "WITH inserted AS (INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0 ORDER BY id  RETURNING id) SELECT max(id) AS lastseq, count(*) AS rows FROM inserted"
+PL/pgSQL function copy(bigint) line 104 at EXECUTE
+CONTEXT:  PL/pgSQL function copy(bigint) line 141 at RAISE
 SELECT stage_id, job_id, target, part, lastseq, rows, state
   FROM job WHERE stage_id = 1 ORDER BY job_id;
  stage_id | job_id |  target   | part | lastseq | rows | state  

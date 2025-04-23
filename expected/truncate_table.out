@@ -28,13 +28,13 @@ SELECT target, invocation FROM plan();
 -- copy(1) should truncate public.t1 as it is a new stage
 CALL copy(1);
 NOTICE:  Executing: TRUNCATE public.t1
-NOTICE:  Executing: SELECT count(id) FROM source.t1 WHERE id > 0 
-NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0  ORDER BY id 
+NOTICE:  Executing: SELECT count(id) FROM source.t1 WHERE id > 0
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0 ORDER BY id 
 CALL
 -- copy(1) should do nothing more because there is no new data in source.t1
 CALL copy(1);
-NOTICE:  Executing: SELECT count(id) FROM source.t1 WHERE id > 100 
-NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 100  ORDER BY id 
+NOTICE:  Executing: SELECT count(id) FROM source.t1 WHERE id > 100
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 100 ORDER BY id 
 CALL
 SELECT stage_id, job_id, target, part, lastseq, rows, total, state
   FROM job WHERE stage_id = 1 ORDER BY job_id;

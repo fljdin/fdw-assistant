@@ -1,0 +1,38 @@
+CREATE TABLE public.t1 (
+    id smallint primary key
+);
+CREATE TABLE
+INSERT INTO public.t1 (id)
+    SELECT i FROM generate_series(1, 100) i;
+INSERT 0 100
+CREATE TABLE public.t2 (
+    id smallint primary key
+);
+CREATE TABLE
+INSERT INTO config (source, target, pkey, priority, parts, trunc, condition, batchsize) VALUES
+-- t1 will be copied in a single batch
+    ('public.t1', 'public.t2', null, 1, 1, true, null, null);
+INSERT 0 1
+SELECT * FROM config WHERE target = 'public.t2'::regclass;
+  source   |  target   | pkey | priority | parts | trunc | condition | batchsize 
+-----------+-----------+------+----------+-------+-------+-----------+-----------
+ public.t1 | public.t2 |      |        1 |     1 | t     |           |          
+(1 row)
+
+-- copy(1) should be a simple SELECT with no condition
+SELECT invocation FROM plan() \gexec
+CALL assistant.copy(1);
+NOTICE:  Executing: TRUNCATE public.t2
+NOTICE:  Executing: SELECT count(1) FROM public.t1 
+NOTICE:  Executing: INSERT INTO public.t2 SELECT id FROM public.t1   
+CALL
+-- Add a condition
+UPDATE config SET condition = 'id >= 0' WHERE target = 'public.t2'::regclass;
+UPDATE 1
+-- copy(2) should be a SELECT with a condition
+SELECT invocation FROM plan() \gexec
+CALL assistant.copy(2);
+NOTICE:  Executing: TRUNCATE public.t2
+NOTICE:  Executing: SELECT count(1) FROM public.t1 WHERE id >= 0
+NOTICE:  Executing: INSERT INTO public.t2 SELECT id FROM public.t1 WHERE id >= 0  
+CALL

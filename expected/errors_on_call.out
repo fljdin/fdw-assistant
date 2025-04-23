@@ -17,4 +17,4 @@ SELECT target, invocation FROM plan('{public.dummy}');
 -- copy(100) should fail because job_id does not exist
 CALL copy(100);
 ERROR:  Job 100 not found
-CONTEXT:  PL/pgSQL function copy(bigint) line 27 at RAISE
+CONTEXT:  PL/pgSQL function copy(bigint) line 28 at RAISE

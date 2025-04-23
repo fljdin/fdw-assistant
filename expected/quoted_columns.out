@@ -24,6 +24,6 @@ SELECT target, invocation FROM plan('{withkeywords2}');
 -- copy(1) should succeed and "limit" must be quoted
 CALL copy(1);
 NOTICE:  Executing: TRUNCATE withkeywords2
-NOTICE:  Executing: SELECT count(id) FROM withkeywords1 WHERE id > 0 
-NOTICE:  Executing: INSERT INTO withkeywords2 SELECT id, "limit" FROM withkeywords1 WHERE id > 0  ORDER BY id 
+NOTICE:  Executing: SELECT count(id) FROM withkeywords1 WHERE id > 0
+NOTICE:  Executing: INSERT INTO withkeywords2 SELECT id, "limit" FROM withkeywords1 WHERE id > 0 ORDER BY id 
 CALL
