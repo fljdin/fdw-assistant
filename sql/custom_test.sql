@@ -1,6 +1,6 @@
 CREATE SCHEMA source;
 
-create table source.clients (
+CREATE TABLE source.clients (
   id bigint not null,
   firstname varchar(255),
   lastname varchar(255) not null,
@@ -14,11 +14,16 @@ create table source.clients (
   deleted_at timestamp(0)
 );
 
+ALTER TABLE source.clients
+ALTER COLUMN deleted_at TYPE varchar;
+
+COMMENT ON COLUMN source.clients.deleted_at IS 'REPLACE(%s, ''0000-00-00'', ''1970-01-01'')::timestamp';
+
 COMMENT ON COLUMN source.clients.is_active IS 'bool(%s)';
 
 COMMENT ON COLUMN source.clients.is_imported IS 'bool(%s)';
 
-create table public.clients (
+CREATE TABLE public.clients (
   id bigint not null,
   firstname varchar(255),
   lastname varchar(255) not null,
@@ -32,15 +37,20 @@ create table public.clients (
   source varchar(255)
 );
 
-create table source.documents (request text);
+CREATE TABLE source.documents (request text);
 
 COMMENT ON COLUMN source.documents.request IS '%s::json';
 
-create table public.documents (request json);
+CREATE TABLE public.documents (request json);
+
+CREATE TABLE source."MixedCaseTable" ("MixedCaseColumn" smallint);
+
+CREATE TABLE public."MixedCaseTable" ("MixedCaseColumn" smallint);
 
 INSERT INTO config (source, target, pkey, priority, parts, trunc, condition, batchsize) VALUES
   ('source.clients', 'public.clients', null, 1, 1, true, null, null),
-  ('source.documents', 'public.documents', null, 2, 1, true, null, null);
+  ('source.documents', 'public.documents', null, 2, 1, true, null, null),
+  ('source."MixedCaseTable"', 'public."MixedCaseTable"', null, 3, 1, true, null, null);
 
 SELECT * FROM config;
 

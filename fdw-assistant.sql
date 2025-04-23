@@ -96,7 +96,7 @@ RETURNS TABLE (statement text)
 LANGUAGE SQL AS $$
     SELECT format('SELECT %s FROM %s',
             string_agg(
-              format(coalesce(pg_catalog.col_description(p_source::oid, fa.attnum), '%s'), a.attname),
+              format(coalesce(pg_catalog.col_description(p_source::oid, fa.attnum), '%I'), a.attname),
               ', ' ORDER BY a.attnum
             ), p_source)
       FROM pg_attribute a
