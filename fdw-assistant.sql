@@ -23,7 +23,7 @@ END $$;
 CREATE TABLE IF NOT EXISTS config (
     source regclass not null,
     target regclass not null,
-    pkey text not null,
+    pkey text,
     priority numeric not null default 1,
     parts integer not null default 1,
     trunc boolean not null default true,
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS task (
     job_id bigint not null references job(job_id),
     source regclass not null,
     target regclass not null,
-    pkey text not null,
+    pkey text,
     trunc boolean not null default true,
     condition text,
     batchsize integer
@@ -161,6 +161,7 @@ DECLARE
     v_total bigint;
     v_start timestamp;
     v_schema text;
+    v_conditions text[];
 
 BEGIN
     -- As we make transaction control, we could not use a global SET
@@ -201,10 +202,18 @@ BEGIN
         WHERE job_id = r.job_id;
     COMMIT;
 
+    IF r.pkey IS NOT NULL THEN
+      v_conditions := array_append(v_conditions, format('%s > %s', r.pkey, r.lastseq));
+    END IF;
+
+    IF r.condition IS NOT NULL THEN
+      v_conditions := array_append(v_conditions, format('%s', r.condition));
+    END IF;
+
     -- Retrieve the total number of rows to be copied
-    stmt := format('SELECT count(%2$s) FROM %1$s WHERE %2$s > %3$s %4$s',
-        r.source, r.pkey, r.lastseq,
-        CASE WHEN r.condition IS NOT NULL THEN format('AND %s', r.condition) ELSE '' END
+    stmt := format('SELECT count(%2$s) FROM %1$s %3$s',
+        r.source, COALESCE(r.pkey, '1'),
+        CASE WHEN cardinality(v_conditions) > 0 THEN 'WHERE ' || array_to_string(v_conditions, ' AND ') ELSE '' END
     );
     raise notice 'Executing: %', stmt;
 
@@ -224,20 +233,28 @@ BEGIN
 
         -- Build INSERT statement
         SELECT statement INTO stmt FROM columns(r.target, r.source);
-        stmt := format('INSERT INTO %1$s %2$s WHERE %3$s > %4$s %5$s ORDER BY %3$s %6$s',
-            r.target, stmt, r.pkey, r.lastseq,
-            CASE WHEN r.condition IS NOT NULL THEN format('AND %s', r.condition) ELSE '' END,
+        stmt := format('INSERT INTO %1$s %2$s %3$s %4$s %5$s',
+            r.target, stmt,
+            CASE WHEN cardinality(v_conditions) > 0 THEN 'WHERE ' || array_to_string(v_conditions, ' AND ') ELSE '' END,
+            CASE WHEN r.pkey IS NOT NULL THEN format('ORDER BY %s', r.pkey) ELSE '' END,
             CASE WHEN r.batchsize IS NOT NULL THEN format('LIMIT %s', r.batchsize) ELSE '' END
         );
         raise notice 'Executing: %', stmt;
-        stmt := format('WITH inserted AS (%1$s RETURNING %2$s) SELECT max(%2$s) AS lastseq, count(*) AS rows FROM inserted',
-            stmt, r.pkey
-        );
 
         -- Execute INSERT statement
         v_start := clock_timestamp();
         BEGIN
-            EXECUTE stmt INTO r.lastseq, v_rows;
+            IF r.pkey IS NOT NULL THEN
+              stmt := format('WITH inserted AS (%1$s RETURNING %2$s) SELECT max(%2$s) AS lastseq, count(*) AS rows FROM inserted',
+                  stmt, r.pkey
+              );
+              EXECUTE stmt INTO r.lastseq, v_rows;
+
+            ELSE
+              stmt := format('WITH inserted AS (%s RETURNING 1) SELECT count(*) AS rows FROM inserted', stmt);
+              EXECUTE stmt INTO v_rows;
+            END IF;
+
             r.state := 'completed';
         EXCEPTION WHEN OTHERS THEN
             r.state := 'failed';
