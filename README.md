@@ -65,8 +65,8 @@ DROP SCHEMA assistant CASCADE;
 Examples:
 
 ```sql
-INSERT INTO config 
-  (source, target, pkey, priority, parts, trunc, condition, batchsize) 
+INSERT INTO config
+  (source, target, pkey, priority, parts, trunc, condition, batchsize)
 VALUES
 -- t1 will be copied in a single operation
   ('source.t1', 'public.t1', 'id', 2, 1, true, null, null),
@@ -170,13 +170,37 @@ VALUES
 
 * `state` (type `state`): State of the job, `pending` by default.
 
+## Testing
+
+Feature tests are included in the `sql` directory. Ensure a local PostgreSQL
+server is running and execute the following command:
+
+```sh
+make test
+```
+
+Each test is isolated in a dedicated database, named based on the test
+filename without the `.sql` extension and prefixed by a single underscore
+(`_`). They should be launched in parallel with the `-j` option. For example, to
+run tests in parallel with 4 jobs, run the following command:
+
+```sh
+make test -j 4
+```
+
+To drop transient databases, run the following command:
+
+```sh
+make clean
+```
+
 ## Hack
 
 **Generate oracle_fdw key options for each foreign table**
 
 When reading foreign tables through [oracle_fdw] extension, we should add a
 special option on primary key column of the foreign table. It enforces index
-usage on remote database when exporting data in a batch. 
+usage on remote database when exporting data in a batch.
 
 [oracle_fdw]: https://github.com/laurenz/oracle_fdw
 
