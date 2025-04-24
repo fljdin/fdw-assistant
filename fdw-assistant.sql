@@ -252,6 +252,15 @@ BEGIN
         -- Exit if there are no rows to copy
         EXIT WHEN r.total = 0;
 
+        v_conditions := '{}';
+        IF r.pkey IS NOT NULL THEN
+          v_conditions := array_append(v_conditions, format('%s > %s', r.pkey, r.lastseq));
+        END IF;
+
+        IF r.condition IS NOT NULL THEN
+          v_conditions := array_append(v_conditions, format('%s', r.condition));
+        END IF;
+
         -- Build INSERT statement
         SELECT statement INTO stmt FROM columns(r.target, r.source);
         stmt := format('INSERT INTO %1$s %2$s %3$s %4$s %5$s',
