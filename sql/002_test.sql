@@ -1,9 +1,34 @@
+CREATE SCHEMA source;
+
+CREATE TABLE source.t1 (
+    id serial primary key,
+    name text
+);
+
+INSERT INTO source.t1 (id, name) VALUES (1, null);
+
+CREATE TABLE public.t1 (
+    id serial primary key,
+    name text not null
+);
+
+CREATE TABLE source.t2 (
+    id serial primary key,
+    age int not null,
+    name text not null
+);
+
+INSERT INTO source.t2 (id, age, name) VALUES (1, 2^(16-1), 'foo');
+
+CREATE TABLE public.t2 (
+    id serial primary key,
+    age smallint not null,
+    name text not null
+);
+
 INSERT INTO config (source, target, pkey, priority, parts, trunc, condition, batchsize) VALUES
     ('source.t1', 'public.t1', 'id', 100, 1, true, null, null),
     ('source.t2', 'public.t2', 'id', 1, 1, false, null, null);
-
-UPDATE source.t1 SET name = null WHERE id = 1;
-INSERT INTO source.t2 (id, age, name) SELECT 1001, 2^(16-1), 'foo';
 
 SELECT target, invocation FROM plan('{public.t1, public.t2}');
 

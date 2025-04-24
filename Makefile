@@ -20,7 +20,6 @@ define createdb
 	$(call dropdb, $(1))
 	createdb $(1)
 	psql -d $(1) -qf fdw-assistant.sql -v INSTALL=$(PROJECT)
-	psql -d $(1) -qf sql/testdata.sql
 endef
 
 results/%_test.out: DB = $(patsubst sql/%.sql,_%,$<)

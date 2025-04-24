@@ -1,11 +1,35 @@
+CREATE SCHEMA source;
+CREATE SCHEMA
+CREATE TABLE source.t1 (
+    id serial primary key,
+    name text
+);
+CREATE TABLE
+INSERT INTO source.t1 (id, name) VALUES (1, null);
+INSERT 0 1
+CREATE TABLE public.t1 (
+    id serial primary key,
+    name text not null
+);
+CREATE TABLE
+CREATE TABLE source.t2 (
+    id serial primary key,
+    age int not null,
+    name text not null
+);
+CREATE TABLE
+INSERT INTO source.t2 (id, age, name) VALUES (1, 2^(16-1), 'foo');
+INSERT 0 1
+CREATE TABLE public.t2 (
+    id serial primary key,
+    age smallint not null,
+    name text not null
+);
+CREATE TABLE
 INSERT INTO config (source, target, pkey, priority, parts, trunc, condition, batchsize) VALUES
     ('source.t1', 'public.t1', 'id', 100, 1, true, null, null),
     ('source.t2', 'public.t2', 'id', 1, 1, false, null, null);
 INSERT 0 2
-UPDATE source.t1 SET name = null WHERE id = 1;
-UPDATE 1
-INSERT INTO source.t2 (id, age, name) SELECT 1001, 2^(16-1), 'foo';
-INSERT 0 1
 SELECT target, invocation FROM plan('{public.t1, public.t2}');
   target   |       invocation        
 -----------+-------------------------
@@ -16,9 +40,9 @@ SELECT target, invocation FROM plan('{public.t1, public.t2}');
 -- copy(1) should fail because of out of range value
 CALL copy(1);
 NOTICE:  Executing: SELECT count(id) FROM source.t2 WHERE id > 0 
-NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 0  ORDER BY id 
+NOTICE:  Executing: INSERT INTO public.t2 SELECT id, age, name FROM source.t2 WHERE id > 0  ORDER BY id 
 ERROR:  smallint out of range
-CONTEXT:  SQL statement "WITH inserted AS (INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 0  ORDER BY id  RETURNING id) SELECT max(id) AS lastseq, count(*) AS rows FROM inserted"
+CONTEXT:  SQL statement "WITH inserted AS (INSERT INTO public.t2 SELECT id, age, name FROM source.t2 WHERE id > 0  ORDER BY id  RETURNING id) SELECT max(id) AS lastseq, count(*) AS rows FROM inserted"
 PL/pgSQL function copy(bigint) line 88 at EXECUTE
 CONTEXT:  PL/pgSQL function copy(bigint) line 119 at RAISE
 -- copy(2) should fail because of the NOT NULL constraint

@@ -1,3 +1,9 @@
+-- "dummy" is a table that exist but is not used in any job
+CREATE TABLE public.dummy (
+    id serial primary key,
+    name text not null
+);
+
 -- Should fail as the table does not exist
 SELECT target, invocation FROM plan('{public.foo}');
 

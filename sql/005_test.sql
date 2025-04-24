@@ -1,3 +1,9 @@
+CREATE SCHEMA source;
+CREATE TABLE source.t1 ();
+CREATE TABLE public.t1 ();
+CREATE TABLE source.t2 ();
+CREATE TABLE public.t2 ();
+
 INSERT INTO config (source, target, pkey, priority, parts, trunc, condition, batchsize) VALUES
     ('source.t1', 'public.t1', 'id', 1, 1, true, null, null),
     ('source.t2', 'public.t2', 'id', 2, 2, false, null, null);
