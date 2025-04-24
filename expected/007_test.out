@@ -3,13 +3,13 @@ INSERT INTO config (source, target, pkey, trunc) VALUES
     ('source.parent', 'public.parent', 'id', true);
 INSERT 0 1
 SELECT invocation FROM plan('{public.parent}');
-        invocation        
---------------------------
- CALL assistant.copy(12);
+       invocation        
+-------------------------
+ CALL assistant.copy(1);
 (1 row)
 
--- copy(12) should fail because "parent" is referenced by "child"
-CALL copy(12);
+-- copy(1) should fail because "parent" is referenced by "child"
+CALL copy(1);
 NOTICE:  Executing: TRUNCATE public.parent
 ERROR:  cannot truncate a table referenced in a foreign key constraint
 CONTEXT:  SQL statement "TRUNCATE public.parent"

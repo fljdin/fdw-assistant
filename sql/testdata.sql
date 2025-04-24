@@ -46,20 +46,6 @@ CREATE TABLE public.t3 (
     value smallint not null CHECK (value >= 0)
 );
 
--- withkeywords table is used to test reserved keywords
--- in "extract" method
-CREATE TABLE source.withkeywords (
-    id serial primary key,
-    "limit" integer not null
-);
-
-INSERT INTO source.withkeywords (id, "limit") VALUES (1, 1);
-
-CREATE TABLE public.withkeywords (
-    id serial primary key,
-    "limit" integer not null
-);
-
 -- "dummy" is a table that exist but is not used in any job
 CREATE TABLE public.dummy (
     id serial primary key,

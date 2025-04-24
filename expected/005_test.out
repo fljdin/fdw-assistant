@@ -1,21 +1,34 @@
--- updating "config" table do not affect the previous jobs
-UPDATE config SET parts = 1;
-UPDATE 3
--- we want to plan the next stage with one single job per target copy
+INSERT INTO config (source, target, pkey, priority, parts, trunc, condition, batchsize) VALUES
+    ('source.t1', 'public.t1', 'id', 1, 1, true, null, null),
+    ('source.t2', 'public.t2', 'id', 2, 2, false, null, null);
+INSERT 0 2
+-- the first stage should plan 3 jobs
 SELECT target, invocation FROM plan('{public.t1, public.t2}');
   target   |       invocation        
 -----------+-------------------------
- public.t2 | CALL assistant.copy(8);
- public.t1 | CALL assistant.copy(9);
+ public.t1 | CALL assistant.copy(1);
+ public.t2 | CALL assistant.copy(2);
+ public.t2 | CALL assistant.copy(3);
+(3 rows)
+
+-- updating "config" table do not affect the previous jobs
+UPDATE config SET parts = 1;
+UPDATE 2
+-- the next stage should plan one single job per target
+SELECT target, invocation FROM plan('{public.t1, public.t2}');
+  target   |       invocation        
+-----------+-------------------------
+ public.t1 | CALL assistant.copy(4);
+ public.t2 | CALL assistant.copy(5);
 (2 rows)
 
--- stage #1 had 3 jobs, stage #6 gets 2 jobs
+-- stage #1 had 3 jobs, stage #1 gets 2 jobs
 SELECT stage_id, count(*) jobs, count(distinct target) targets
-FROM job WHERE stage_id IN (1, 6)
+FROM job WHERE stage_id IN (1, 2)
 GROUP BY stage_id;
  stage_id | jobs | targets 
 ----------+------+---------
         1 |    3 |       2
-        6 |    2 |       2
+        2 |    2 |       2
 (2 rows)
 

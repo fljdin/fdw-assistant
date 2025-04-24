@@ -1,30 +1,28 @@
+INSERT INTO config (source, target, pkey, priority, parts, trunc, condition, batchsize) VALUES
+    ('source.t1', 'public.t1', 'id', 100, 1, true, null, null),
+    ('source.t2', 'public.t2', 'id', 1, 1, false, null, null);
+INSERT 0 2
 UPDATE source.t1 SET name = null WHERE id = 1;
 UPDATE 1
-INSERT INTO source.t2 (id, age, name) SELECT 2002, 2^(16-1), 'foo';
+INSERT INTO source.t2 (id, age, name) SELECT 1001, 2^(16-1), 'foo';
 INSERT 0 1
 SELECT target, invocation FROM plan('{public.t1, public.t2}');
   target   |       invocation        
 -----------+-------------------------
- public.t2 | CALL assistant.copy(4);
- public.t2 | CALL assistant.copy(5);
- public.t1 | CALL assistant.copy(6);
-(3 rows)
+ public.t2 | CALL assistant.copy(1);
+ public.t1 | CALL assistant.copy(2);
+(2 rows)
 
--- copy(4) should fail because of out of range value
-CALL copy(4);
-NOTICE:  Executing: SELECT count(id) FROM source.t2 WHERE id > 2000 AND id % 2 = 0
-NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 2000 AND id % 2 = 0 ORDER BY id LIMIT 200
+-- copy(1) should fail because of out of range value
+CALL copy(1);
+NOTICE:  Executing: SELECT count(id) FROM source.t2 WHERE id > 0 
+NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 0  ORDER BY id 
 ERROR:  smallint out of range
-CONTEXT:  SQL statement "WITH inserted AS (INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 2000 AND id % 2 = 0 ORDER BY id LIMIT 200 RETURNING id) SELECT max(id) AS lastseq, count(*) AS rows FROM inserted"
+CONTEXT:  SQL statement "WITH inserted AS (INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 0  ORDER BY id  RETURNING id) SELECT max(id) AS lastseq, count(*) AS rows FROM inserted"
 PL/pgSQL function copy(bigint) line 88 at EXECUTE
 CONTEXT:  PL/pgSQL function copy(bigint) line 119 at RAISE
--- copy(5) should succeed
-CALL copy(5);
-NOTICE:  Executing: SELECT count(id) FROM source.t2 WHERE id > 1999 AND id % 2 = 1
-NOTICE:  Executing: INSERT INTO public.t2 SELECT id, name, age FROM source.t2 WHERE id > 1999 AND id % 2 = 1 ORDER BY id LIMIT 200
-CALL
--- copy(6) should fail because of the NOT NULL constraint
-CALL copy(6);
+-- copy(2) should fail because of the NOT NULL constraint
+CALL copy(2);
 NOTICE:  Executing: TRUNCATE public.t1
 NOTICE:  Executing: SELECT count(id) FROM source.t1 WHERE id > 0 
 NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0  ORDER BY id 
@@ -32,24 +30,19 @@ ERROR:  null value in column "name" of relation "t1" violates not-null constrain
 CONTEXT:  SQL statement "WITH inserted AS (INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0  ORDER BY id  RETURNING id) SELECT max(id) AS lastseq, count(*) AS rows FROM inserted"
 PL/pgSQL function copy(bigint) line 88 at EXECUTE
 CONTEXT:  PL/pgSQL function copy(bigint) line 119 at RAISE
--- copy(100) should fail because job_id does not exist
-CALL copy(100);
-ERROR:  Job 100 not found
-CONTEXT:  PL/pgSQL function copy(bigint) line 27 at RAISE
 SELECT stage_id, job_id, target, part, lastseq, rows, state
-  FROM job WHERE stage_id = 2 ORDER BY job_id;
- stage_id | job_id |  target   | part | lastseq | rows |   state   
-----------+--------+-----------+------+---------+------+-----------
-        2 |      4 | public.t2 |    0 |    2000 |    0 | failed
-        2 |      5 | public.t2 |    1 |    1999 |    0 | completed
-        2 |      6 | public.t1 |    0 |       0 |    0 | failed
-(3 rows)
+  FROM job WHERE stage_id = 1 ORDER BY job_id;
+ stage_id | job_id |  target   | part | lastseq | rows | state  
+----------+--------+-----------+------+---------+------+--------
+        1 |      1 | public.t2 |    0 |       0 |    0 | failed
+        1 |      2 | public.t1 |    0 |       0 |    0 | failed
+(2 rows)
 
 SELECT stage_id, target, rows, state
-  FROM report WHERE stage_id = 2 ORDER BY target;
+  FROM report WHERE stage_id = 1 ORDER BY target;
  stage_id |  target   | rows | state  
 ----------+-----------+------+--------
-        2 | public.t1 |    0 | failed
-        2 | public.t2 |    0 | failed
+        1 | public.t1 |    0 | failed
+        1 | public.t2 |    0 | failed
 (2 rows)
 

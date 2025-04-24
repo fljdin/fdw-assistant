@@ -1,4 +1,3 @@
-
 INSERT INTO config (source, target, pkey, priority, parts, trunc, condition, batchsize) VALUES
 -- t1 will be copied in a single operation
     ('source.t1', 'public.t1', 'id', 100, 1, true, null, null),

@@ -1,5 +1,4 @@
 PROJECT = assistant
-export PGDATABASE = test
 export PGOPTIONS  = --search_path=$(PROJECT)
 export PSQL_PAGER =
 
@@ -12,16 +11,26 @@ test: $(OUT)
 
 setup:
 	@mkdir -p results
-	@dropdb --if-exists $(PGDATABASE)
-	@createdb
-	@psql -qf fdw-assistant.sql -v INSTALL=$(PROJECT)
-	@psql -qf sql/testdata.sql
 
+define dropdb
+	2>/dev/null dropdb --if-exists $(1);
+endef
+
+define createdb
+	$(call dropdb, $(1))
+	createdb $(1)
+	psql -d $(1) -qf fdw-assistant.sql -v INSTALL=$(PROJECT)
+	psql -d $(1) -qf sql/testdata.sql
+endef
+
+results/%_test.out: DB = $(patsubst sql/%.sql,_%,$<)
 results/%_test.out: sql/%_test.sql setup
 	@echo "-- Running tests from $<"
-	@psql -a < $< > $@ 2>&1
+	@$(call createdb, $(DB))
+	@psql -d $(DB) -a < $< > $@ 2>&1
 	@diff -u expected/$*_test.out $@ || true
 
+clean: DBS = $(patsubst sql/%.sql,_%,$(SQL))
 clean:
+	@$(foreach db,$(DBS),$(call dropdb,$(db)))
 	rm -rf results
-	dropdb --if-exists $(PGDATABASE)

@@ -12,7 +12,7 @@ SET search_path = :INSTALL;
 DO $$
 BEGIN
 IF NOT EXISTS (
-    SELECT typname, nspname FROM pg_type JOIN pg_namespace n ON typnamespace = n.oid 
+    SELECT typname, nspname FROM pg_type JOIN pg_namespace n ON typnamespace = n.oid
     WHERE typname = 'state' and nspname = current_setting('search_path')
 ) THEN
     CREATE TYPE state AS ENUM ('running', 'failed', 'pending', 'completed');
@@ -114,7 +114,7 @@ RETURNS TABLE (target regclass, invocation text)
 SET search_path = :INSTALL LANGUAGE SQL AS $$
     WITH configs AS (
         SELECT c.* AS target FROM config c
-        JOIN unnest(targets) s ON c.target = s::regclass
+        RIGHT JOIN unnest(targets) s ON c.target = s::regclass
         UNION
         SELECT * FROM config
         WHERE cardinality(targets) = 0
