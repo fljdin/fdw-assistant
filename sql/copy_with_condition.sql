@@ -20,7 +20,7 @@ SELECT * FROM config WHERE target = 'public.t2'::regclass;
 
 SELECT invocation FROM plan('{public.t2}');
 
--- copy(1) and copy(2) should copy the positive values from source.t3
+-- copy(1) and copy(2) should copy the positive values from source.t1
 -- only job with part #0 should truncate the target table
 CALL copy(1);
 CALL copy(2);

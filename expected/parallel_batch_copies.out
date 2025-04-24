@@ -1,0 +1,94 @@
+CREATE SCHEMA source;
+CREATE SCHEMA
+-- source.t1 is large enough to test copy in batches and through several jobs
+CREATE TABLE source.t1 (
+    id serial primary key,
+    age int not null,
+    name text not null
+);
+CREATE TABLE
+INSERT INTO source.t1 (id, age, name)
+    SELECT i, i, 'name' || i FROM generate_series(1, 1000) i;
+INSERT 0 1000
+-- columns order differs from source.t1 and public.t1
+CREATE TABLE public.t1 (
+    id serial primary key,
+    name text not null,
+    age smallint not null
+);
+CREATE TABLE
+INSERT INTO config (source, target, pkey, priority, parts, trunc, condition, batchsize) VALUES
+-- t1 will be dispatched to two jobs, each will insert data with a batch size of 200
+    ('source.t1', 'public.t1', 'id', 1, 2, false, null, 200);
+INSERT 0 1
+SELECT target, invocation FROM plan();
+  target   |       invocation        
+-----------+-------------------------
+ public.t1 | CALL assistant.copy(1);
+ public.t1 | CALL assistant.copy(2);
+(2 rows)
+
+-- "report" view shows the aggregated state for each target table
+SELECT target, state, rows FROM report WHERE stage_id = 1;
+  target   |  state  | rows 
+-----------+---------+------
+ public.t1 | pending |    0
+(1 row)
+
+-- copy(1) and copy(2) should share an half of the data from source.t1
+CALL copy(1);
+NOTICE:  Executing: SELECT count(id) FROM source.t1 WHERE id > 0 AND id % 2 = 0
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name, age FROM source.t1 WHERE id > 0 AND id % 2 = 0 ORDER BY id LIMIT 200
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name, age FROM source.t1 WHERE id > 400 AND id % 2 = 0 ORDER BY id LIMIT 200
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name, age FROM source.t1 WHERE id > 800 AND id % 2 = 0 ORDER BY id LIMIT 200
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name, age FROM source.t1 WHERE id > 1000 AND id % 2 = 0 ORDER BY id LIMIT 200
+CALL
+CALL copy(2);
+NOTICE:  Executing: SELECT count(id) FROM source.t1 WHERE id > 0 AND id % 2 = 1
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name, age FROM source.t1 WHERE id > 0 AND id % 2 = 1 ORDER BY id LIMIT 200
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name, age FROM source.t1 WHERE id > 399 AND id % 2 = 1 ORDER BY id LIMIT 200
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name, age FROM source.t1 WHERE id > 799 AND id % 2 = 1 ORDER BY id LIMIT 200
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name, age FROM source.t1 WHERE id > 999 AND id % 2 = 1 ORDER BY id LIMIT 200
+CALL
+SELECT stage_id, job_id, target, part, lastseq, rows, total, state
+  FROM job WHERE stage_id = 1 ORDER BY job_id;
+ stage_id | job_id |  target   | part | lastseq | rows | total |   state   
+----------+--------+-----------+------+---------+------+-------+-----------
+        1 |      1 | public.t1 |    0 |    1000 |  500 |   500 | completed
+        1 |      2 | public.t1 |    1 |     999 |  500 |   500 | completed
+(2 rows)
+
+INSERT INTO source.t1 (id, age, name)
+    SELECT i, i, 'name' || i FROM generate_series(1001, 2000) i;
+INSERT 0 1000
+-- copy(1) and copy(2) should continue from where they left
+CALL copy(1);
+NOTICE:  Executing: SELECT count(id) FROM source.t1 WHERE id > 1000 AND id % 2 = 0
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name, age FROM source.t1 WHERE id > 1000 AND id % 2 = 0 ORDER BY id LIMIT 200
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name, age FROM source.t1 WHERE id > 1400 AND id % 2 = 0 ORDER BY id LIMIT 200
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name, age FROM source.t1 WHERE id > 1800 AND id % 2 = 0 ORDER BY id LIMIT 200
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name, age FROM source.t1 WHERE id > 2000 AND id % 2 = 0 ORDER BY id LIMIT 200
+CALL
+CALL copy(2);
+NOTICE:  Executing: SELECT count(id) FROM source.t1 WHERE id > 999 AND id % 2 = 1
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name, age FROM source.t1 WHERE id > 999 AND id % 2 = 1 ORDER BY id LIMIT 200
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name, age FROM source.t1 WHERE id > 1399 AND id % 2 = 1 ORDER BY id LIMIT 200
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name, age FROM source.t1 WHERE id > 1799 AND id % 2 = 1 ORDER BY id LIMIT 200
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name, age FROM source.t1 WHERE id > 1999 AND id % 2 = 1 ORDER BY id LIMIT 200
+CALL
+SELECT stage_id, job_id, target, part, lastseq, rows, total, state
+  FROM job WHERE stage_id = 1 ORDER BY job_id;
+ stage_id | job_id |  target   | part | lastseq | rows | total |   state   
+----------+--------+-----------+------+---------+------+-------+-----------
+        1 |      1 | public.t1 |    0 |    2000 | 1000 |  1000 | completed
+        1 |      2 | public.t1 |    1 |    1999 | 1000 |  1000 | completed
+(2 rows)
+
+-- "report" view should compiles the state of the last stage for each relation
+SELECT stage_id, target, rows, total, state
+  FROM report WHERE stage_id = 1 ORDER BY target;
+ stage_id |  target   | rows | total |   state   
+----------+-----------+------+-------+-----------
+        1 | public.t1 | 2000 |  2000 | completed
+(1 row)
+

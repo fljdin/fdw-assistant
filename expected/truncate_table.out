@@ -1,0 +1,45 @@
+CREATE SCHEMA source;
+CREATE SCHEMA
+CREATE TABLE source.t1 (
+    id serial primary key,
+    name text
+);
+CREATE TABLE
+INSERT INTO source.t1 (id, name) 
+    SELECT i, 'name' || i FROM generate_series(1, 100) i;
+INSERT 0 100
+-- name has a NOT NULL constraint to test edge cases
+CREATE TABLE public.t1 (
+    id serial primary key,
+    name text not null
+);
+CREATE TABLE
+INSERT INTO config (source, target, pkey, priority, parts, trunc, condition, batchsize) VALUES
+-- t1 will be copied in a single operation
+    ('source.t1', 'public.t1', 'id', 100, 1, true, null, null);
+INSERT 0 1
+    
+SELECT target, invocation FROM plan();
+  target   |       invocation        
+-----------+-------------------------
+ public.t1 | CALL assistant.copy(1);
+(1 row)
+
+-- copy(1) should truncate public.t1 as it is a new stage
+CALL copy(1);
+NOTICE:  Executing: TRUNCATE public.t1
+NOTICE:  Executing: SELECT count(id) FROM source.t1 WHERE id > 0 
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 0  ORDER BY id 
+CALL
+-- copy(1) should do nothing more because there is no new data in source.t1
+CALL copy(1);
+NOTICE:  Executing: SELECT count(id) FROM source.t1 WHERE id > 100 
+NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name FROM source.t1 WHERE id > 100  ORDER BY id 
+CALL
+SELECT stage_id, job_id, target, part, lastseq, rows, total, state
+  FROM job WHERE stage_id = 1 ORDER BY job_id;
+ stage_id | job_id |  target   | part | lastseq | rows | total |   state   
+----------+--------+-----------+------+---------+------+-------+-----------
+        1 |      1 | public.t1 |    0 |     100 |  100 |   100 | completed
+(1 row)
+

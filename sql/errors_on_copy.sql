@@ -20,6 +20,7 @@ CREATE TABLE source.t2 (
 
 INSERT INTO source.t2 (id, age, name) VALUES (1, 2^(16-1), 'foo');
 
+-- "age" column allows only smallint (2^8) values to test edge cases
 CREATE TABLE public.t2 (
     id serial primary key,
     age smallint not null,

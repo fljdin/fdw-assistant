@@ -2,8 +2,8 @@ PROJECT = assistant
 export PGOPTIONS  = --search_path=$(PROJECT)
 export PSQL_PAGER =
 
-SQL := $(wildcard sql/*_test.sql)
-EXP := $(patsubst sql/%_test.sql,expected/%_test.out,$(SQL))
+SQL := $(wildcard sql/*.sql)
+EXP := $(patsubst sql/%.sql,expected/%.out,$(SQL))
 OUT := $(patsubst expected/%,results/%,$(EXP))
 
 .PHONY: test
@@ -22,12 +22,12 @@ define createdb
 	psql -d $(1) -qf fdw-assistant.sql -v INSTALL=$(PROJECT)
 endef
 
-results/%_test.out: DB = $(patsubst sql/%.sql,_%,$<)
-results/%_test.out: sql/%_test.sql setup
+results/%.out: DB = $(patsubst sql/%.sql,_%,$<)
+results/%.out: sql/%.sql setup
 	@echo "-- Running tests from $<"
 	@$(call createdb, $(DB))
 	@psql -d $(DB) -a < $< > $@ 2>&1
-	@diff -u expected/$*_test.out $@ || true
+	@diff -u expected/$*.out $@ || true
 
 clean: DBS = $(patsubst sql/%.sql,_%,$(SQL))
 clean:
