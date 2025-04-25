@@ -94,10 +94,16 @@ SELECT r.*,
 CREATE OR REPLACE FUNCTION columns(p_target regclass, p_source regclass)
 RETURNS TABLE (statement text)
 LANGUAGE SQL AS $$
-    SELECT format('SELECT %s FROM %s', string_agg(format('%I', attname), ', '), p_source)
-      FROM pg_attribute
-     WHERE attrelid = p_target
-       AND attnum > 0 AND NOT attisdropped
+    SELECT format('SELECT %s FROM %s',
+           string_agg(
+             format(coalesce(pg_catalog.col_description(p_source::oid, fa.attnum), '%I'), a.attname),
+             ', ' ORDER BY a.attnum
+           ), p_source)
+      FROM pg_attribute a
+      JOIN pg_attribute fa ON fa.attname = a.attname
+     WHERE a.attrelid = p_target
+       AND fa.attrelid = p_source
+       AND a.attnum > 0 AND NOT a.attisdropped
      GROUP BY p_target;
 $$;
 

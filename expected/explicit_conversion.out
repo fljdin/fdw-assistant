@@ -1,0 +1,35 @@
+CREATE TABLE public.t1 (
+    id smallint PRIMARY KEY,
+    name varchar(10),
+    date varchar(10)
+);
+CREATE TABLE
+INSERT INTO public.t1 (id, name, date)
+    VALUES (1, 'foo', '0000-00-00');
+INSERT 0 1
+COMMENT ON COLUMN public.t1.date IS $$REPLACE(%s, '0000-00-00', '1970-01-01')::date$$;
+COMMENT
+-- columns are disordered voluntarily
+CREATE TABLE public.t2 (
+    id smallint PRIMARY KEY,
+    date date,
+    name varchar(10)
+);
+CREATE TABLE
+INSERT INTO config (source, target, pkey, priority, parts, trunc, condition, batchsize) VALUES
+  ('public.t1', 'public.t2', null, 1, 1, true, null, null);
+INSERT 0 1
+-- plan(1) should use the REPLACE function on `date` column
+SELECT invocation FROM plan() \gexec
+CALL assistant.copy(1);
+NOTICE:  Executing: TRUNCATE public.t2
+NOTICE:  Executing: SELECT count(1) FROM public.t1 
+NOTICE:  Executing: INSERT INTO public.t2 SELECT id, REPLACE(date, '0000-00-00', '1970-01-01')::date, name FROM public.t1   
+CALL
+-- table public.t2 should have 1 row with date '1970-01-01'
+SELECT * FROM public.t2;
+ id |    date    | name 
+----+------------+------
+  1 | 1970-01-01 | foo
+(1 row)
+
