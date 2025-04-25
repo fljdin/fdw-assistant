@@ -224,7 +224,22 @@ BEGIN
     raise notice 'Executing: %', stmt;
 
     v_start := clock_timestamp();
-    EXECUTE stmt INTO v_total;
+    BEGIN
+        EXECUTE stmt INTO v_total;
+    EXCEPTION WHEN OTHERS THEN
+        r.state := 'failed';
+        GET STACKED DIAGNOSTICS
+            v_ctx     = PG_EXCEPTION_CONTEXT,
+            v_message = MESSAGE_TEXT;
+
+        UPDATE job
+            SET state = r.state, total = COALESCE(r.total, 0) + v_total, elapsed = r.elapsed
+            WHERE job_id = r.job_id;
+        COMMIT;
+
+        raise exception E'%\nCONTEXT:  %', v_message, v_ctx;
+    END;
+
     v_elapsed := clock_timestamp() - v_start;
     r.elapsed := COALESCE(r.elapsed, '0') + v_elapsed;
 

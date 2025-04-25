@@ -1,0 +1,22 @@
+CREATE TABLE public.dummy1 ();
+CREATE TABLE
+CREATE TABLE public.dummy2 ();
+CREATE TABLE
+INSERT INTO config (source, target, condition) VALUES
+  ('public.dummy1', 'public.dummy2', 'must fail');
+INSERT 0 1
+-- copy(1) should fail with a syntax error
+SELECT invocation FROM plan() \gexec
+CALL assistant.copy(1);
+NOTICE:  Executing: TRUNCATE public.dummy2
+NOTICE:  Executing: SELECT count(1) FROM public.dummy1 WHERE must fail
+ERROR:  syntax error at or near "fail"
+CONTEXT:  PL/pgSQL function copy(bigint) line 70 at EXECUTE
+CONTEXT:  PL/pgSQL function copy(bigint) line 82 at RAISE
+-- target public.dummy2 should have a failed state
+SELECT target, state, rows, total FROM report WHERE stage_id = 1 ORDER BY job_start;
+    target     | state  | rows | total 
+---------------+--------+------+-------
+ public.dummy2 | failed |    0 |      
+(1 row)
+
