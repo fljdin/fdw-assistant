@@ -26,7 +26,7 @@ results/%.out: DB = $(patsubst sql/%.sql,_%,$<)
 results/%.out: sql/%.sql setup
 	@echo "-- Running tests from $<"
 	@$(call createdb, $(DB))
-	@psql -d $(DB) -a < $< > $@ 2>&1
+	@psql -d $(DB) -a < $< 2>&1 | grep -v "PL/pgSQL function .* line [0-9]* at" > $@
 	@diff -u expected/$*.out $@ || true
 
 clean: DBS = $(patsubst sql/%.sql,_%,$(SQL))

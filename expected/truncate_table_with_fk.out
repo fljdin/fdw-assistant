@@ -24,5 +24,3 @@ CALL copy(1);
 NOTICE:  Executing: TRUNCATE public.parent
 ERROR:  cannot truncate a table referenced in a foreign key constraint
 CONTEXT:  SQL statement "TRUNCATE public.parent"
-PL/pgSQL function copy(bigint) line 37 at EXECUTE
-CONTEXT:  PL/pgSQL function copy(bigint) line 43 at RAISE
