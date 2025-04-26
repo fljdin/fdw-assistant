@@ -13,7 +13,7 @@ DO $$
 BEGIN
 IF NOT EXISTS (
     SELECT typname, nspname FROM pg_type JOIN pg_namespace n ON typnamespace = n.oid
-    WHERE typname = 'state' and nspname = current_setting('search_path')
+     WHERE typname = 'state' and nspname = current_setting('search_path')
 ) THEN
     CREATE TYPE state AS ENUM ('running', 'failed', 'pending', 'completed');
 END IF;
@@ -81,12 +81,12 @@ SELECT r.*,
             ELSE job_start + format('%s hours', trunc(total / rate / 60 / 60, 2))::interval
             END AS eta
   FROM (
-    SELECT s.stage_id, j.target, min(j.ts) job_start, min(j.state) state,
-        sum(j.rows) rows, sum(j.total) total, max(j.elapsed) elapsed,
-        sum(round(j.rows / extract(epoch from j.elapsed), 2)) AS rate
-    FROM job j
-    JOIN stage s USING (stage_id)
-    GROUP BY s.stage_id, j.target
+      SELECT s.stage_id, j.target, min(j.ts) job_start, min(j.state) state,
+             sum(j.rows) rows, sum(j.total) total, max(j.elapsed) elapsed,
+             sum(round(j.rows / extract(epoch from j.elapsed), 2)) AS rate
+        FROM job j
+        JOIN stage s USING (stage_id)
+       GROUP BY s.stage_id, j.target
   ) AS r;
 
 -- "_columns" function returns SELECT statement for the source relation
@@ -129,8 +129,8 @@ BEGIN
 
 EXCEPTION WHEN OTHERS THEN
     UPDATE job
-      SET state = 'failed', ts = COALESCE(ts, clock_timestamp())
-      WHERE job_id = p_id;
+        SET state = 'failed', ts = COALESCE(ts, clock_timestamp())
+        WHERE job_id = p_id;
     COMMIT;
 
     GET STACKED DIAGNOSTICS
@@ -210,6 +210,8 @@ BEGIN
         RAISE EXCEPTION 'Job % not found', p_id;
     END IF;
 
+    v_start := clock_timestamp();
+
     -- Truncate the target relation if option is set
     -- only one job whould truncate the target table (part = 0)
     IF j.trunc AND j.ts IS NULL AND j.part = 0 THEN
@@ -220,7 +222,7 @@ BEGIN
 
     -- Update job record on start
     UPDATE job
-        SET state = 'running', ts = COALESCE(ts, clock_timestamp())
+        SET state = 'running', ts = COALESCE(ts, v_start)
         WHERE job_id = p_id;
     COMMIT;
 
@@ -238,8 +240,6 @@ BEGIN
         CASE WHEN cardinality(v_conditions) > 0 THEN 'WHERE ' || array_to_string(v_conditions, ' AND ') ELSE '' END
     );
     RAISE NOTICE 'Executing: %', stmt;
-
-    v_start := clock_timestamp();
     CALL _execute(p_id, stmt, res);
 
     v_elapsed := clock_timestamp() - v_start;
@@ -253,6 +253,9 @@ BEGIN
     LOOP
         -- Exit if there are no rows to copy
         EXIT WHEN j.total = 0;
+
+        -- Use a fresh start time, specifically after an interruption
+        v_start := clock_timestamp();
 
         -- Refresh condition for the next batch
         IF j.pkey IS NOT NULL THEN
@@ -269,21 +272,17 @@ BEGIN
         );
         RAISE NOTICE 'Executing: %', stmt;
 
-        -- Execute INSERT statement
-        v_start := clock_timestamp();
-
+        -- Execute INSERT statement depending on pkey definition
         IF j.pkey IS NOT NULL THEN
             stmt := format('WITH inserted AS (%1$s RETURNING %2$s) SELECT max(%2$s) AS lastseq, count(*) AS rows FROM inserted',
                 stmt, j.pkey
             );
             CALL _execute(p_id, stmt, res);
             j.lastseq := res.lastseq;
-
         ELSE
             stmt := format('WITH inserted AS (%s RETURNING 1) SELECT count(*) AS rows FROM inserted', stmt);
             CALL _execute(p_id, stmt, res);
         END IF;
-
         EXIT WHEN res.rows = 0;
 
         -- Update job record at the end of each batch

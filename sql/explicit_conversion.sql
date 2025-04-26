@@ -7,7 +7,7 @@ CREATE TABLE public.t1 (
 INSERT INTO public.t1 (id, name, date)
     VALUES (1, 'foo', '0000-00-00');
 
-COMMENT ON COLUMN public.t1.date IS $$REPLACE(%s, '0000-00-00', '1970-01-01')::date$$;
+COMMENT ON COLUMN public.t1.date IS $$REPLACE(%I, '0000-00-00', '1970-01-01')::date$$;
 
 -- columns are disordered voluntarily
 CREATE TABLE public.t2 (
