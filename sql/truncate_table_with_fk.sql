@@ -15,3 +15,7 @@ SELECT invocation FROM plan('{public.parent}');
 
 -- copy(1) should fail because "parent" is referenced by "child"
 CALL copy(1);
+
+-- job 1 should have a failed state
+SELECT stage_id, target, rows, state
+  FROM report WHERE stage_id = 1 ORDER BY target;

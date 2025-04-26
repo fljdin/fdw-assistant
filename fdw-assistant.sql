@@ -190,15 +190,19 @@ BEGIN
     -- only one job whould truncate the target table (part = 0)
     IF r.trunc AND r.ts IS NULL AND r.part = 0 THEN
         stmt := format('TRUNCATE %s', r.target);
-        raise notice 'Executing: %', stmt;
+        RAISE NOTICE 'Executing: %', stmt;
         BEGIN
             EXECUTE stmt;
         EXCEPTION WHEN OTHERS THEN
-            r.state := 'failed';
+            UPDATE job
+                SET state = 'failed', ts = clock_timestamp()
+                WHERE job_id = r.job_id;
+            COMMIT;
+
             GET STACKED DIAGNOSTICS
                 v_ctx     = PG_EXCEPTION_CONTEXT,
                 v_message = MESSAGE_TEXT;
-            raise exception E'%\nCONTEXT:  %', v_message, v_ctx;
+            RAISE EXCEPTION E'%\nCONTEXT:  %', v_message, v_ctx;
         END;
     END IF;
 
@@ -221,7 +225,7 @@ BEGIN
         r.source, COALESCE(r.pkey, '1'),
         CASE WHEN cardinality(v_conditions) > 0 THEN 'WHERE ' || array_to_string(v_conditions, ' AND ') ELSE '' END
     );
-    raise notice 'Executing: %', stmt;
+    RAISE NOTICE 'Executing: %', stmt;
 
     v_start := clock_timestamp();
     BEGIN
@@ -237,7 +241,7 @@ BEGIN
             WHERE job_id = r.job_id;
         COMMIT;
 
-        raise exception E'%\nCONTEXT:  %', v_message, v_ctx;
+        RAISE EXCEPTION E'%\nCONTEXT:  %', v_message, v_ctx;
     END;
 
     v_elapsed := clock_timestamp() - v_start;
@@ -265,7 +269,7 @@ BEGIN
             CASE WHEN r.pkey IS NOT NULL THEN format('ORDER BY %s', r.pkey) ELSE '' END,
             CASE WHEN r.batchsize IS NOT NULL THEN format('LIMIT %s', r.batchsize) ELSE '' END
         );
-        raise notice 'Executing: %', stmt;
+        RAISE NOTICE 'Executing: %', stmt;
 
         -- Execute INSERT statement
         v_start := clock_timestamp();
@@ -311,7 +315,7 @@ BEGIN
     COMMIT;
 
     IF r.state = 'failed' THEN
-        raise exception E'%\nCONTEXT:  %', v_message, v_ctx;
+        RAISE EXCEPTION E'%\nCONTEXT:  %', v_message, v_ctx;
     END IF;
 END;
 $$;

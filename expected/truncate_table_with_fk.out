@@ -24,3 +24,11 @@ CALL copy(1);
 NOTICE:  Executing: TRUNCATE public.parent
 ERROR:  cannot truncate a table referenced in a foreign key constraint
 CONTEXT:  SQL statement "TRUNCATE public.parent"
+-- job 1 should have a failed state
+SELECT stage_id, target, rows, state
+  FROM report WHERE stage_id = 1 ORDER BY target;
+ stage_id |    target     | rows | state  
+----------+---------------+------+--------
+        1 | public.parent |    0 | failed
+(1 row)
+
