@@ -76,8 +76,9 @@ NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name, age FROM source.t1 WH
 NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name, age FROM source.t1 WHERE id > 1799 AND id % 2 = 1 ORDER BY id LIMIT 200
 NOTICE:  Executing: INSERT INTO public.t1 SELECT id, name, age FROM source.t1 WHERE id > 1999 AND id % 2 = 1 ORDER BY id LIMIT 200
 CALL
+-- Each job must have a non-zero elapsed time
 SELECT stage_id, job_id, target, part, lastseq, rows, total, state
-  FROM job WHERE stage_id = 1 ORDER BY job_id;
+  FROM job WHERE stage_id = 1 AND elapsed > interval '0s' ORDER BY job_id;
  stage_id | job_id |  target   | part | lastseq | rows | total |   state   
 ----------+--------+-----------+------+---------+------+-------+-----------
         1 |      1 | public.t1 |    0 |    2000 | 1000 |  1000 | completed

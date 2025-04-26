@@ -153,18 +153,41 @@ SET search_path = :INSTALL LANGUAGE SQL AS $$
       FROM new_tasks;
 $$;
 
+CREATE PROCEDURE _execute(p_id bigint, stmt text, OUT res record)
+LANGUAGE plpgsql AS $$
+DECLARE
+    v_ctx text;
+    v_message text;
+BEGIN
+    -- Populate output record when necessary
+    IF stmt ~ '^SELECT|RETURNING' THEN
+        EXECUTE stmt INTO res;
+    ELSE
+        EXECUTE stmt;
+    END IF;
+
+EXCEPTION WHEN OTHERS THEN
+    UPDATE job
+      SET state = 'failed', ts = COALESCE(ts, clock_timestamp())
+      WHERE job_id = p_id;
+    COMMIT;
+
+    GET STACKED DIAGNOSTICS
+        v_ctx     = PG_EXCEPTION_CONTEXT,
+        v_message = MESSAGE_TEXT;
+    RAISE EXCEPTION E'%\nCONTEXT:  %', v_message, v_ctx;
+END;
+$$;
+
 -- "copy" procedure transfers data from source to target
 -- using the configuration in the "job" table
 CREATE OR REPLACE PROCEDURE copy(p_id bigint)
 LANGUAGE plpgsql AS $$
 DECLARE
-    r record;
+    j record;
+    res record;
     stmt text;
-    v_ctx text;
     v_elapsed interval;
-    v_message text;
-    v_rows bigint;
-    v_total bigint;
     v_start timestamp;
     v_schema text;
     v_conditions text[];
@@ -177,7 +200,7 @@ BEGIN
     v_schema := current_setting('assistant.search_path');
     EXECUTE format('SET search_path TO %I', v_schema);
 
-    SELECT * INTO r
+    SELECT * INTO j
         FROM job JOIN task USING (job_id)
         WHERE job_id = p_id;
 
@@ -188,134 +211,97 @@ BEGIN
 
     -- Truncate the target relation if option is set
     -- only one job whould truncate the target table (part = 0)
-    IF r.trunc AND r.ts IS NULL AND r.part = 0 THEN
-        stmt := format('TRUNCATE %s', r.target);
+    IF j.trunc AND j.ts IS NULL AND j.part = 0 THEN
+        stmt := format('TRUNCATE %s', j.target);
         RAISE NOTICE 'Executing: %', stmt;
-        BEGIN
-            EXECUTE stmt;
-        EXCEPTION WHEN OTHERS THEN
-            UPDATE job
-                SET state = 'failed', ts = clock_timestamp()
-                WHERE job_id = r.job_id;
-            COMMIT;
-
-            GET STACKED DIAGNOSTICS
-                v_ctx     = PG_EXCEPTION_CONTEXT,
-                v_message = MESSAGE_TEXT;
-            RAISE EXCEPTION E'%\nCONTEXT:  %', v_message, v_ctx;
-        END;
+        CALL _execute(p_id, stmt, res);
     END IF;
 
     -- Update job record on start
     UPDATE job
         SET state = 'running', ts = COALESCE(ts, clock_timestamp())
-        WHERE job_id = r.job_id;
+        WHERE job_id = p_id;
     COMMIT;
 
-    IF r.pkey IS NOT NULL THEN
-      v_conditions := array_append(v_conditions, format('%s > %s', r.pkey, r.lastseq));
+    IF j.pkey IS NOT NULL THEN
+      v_conditions := array_append(v_conditions, format('%s > %s', j.pkey, j.lastseq));
     END IF;
 
-    IF r.condition IS NOT NULL THEN
-      v_conditions := array_append(v_conditions, format('%s', r.condition));
+    IF j.condition IS NOT NULL THEN
+      v_conditions := array_append(v_conditions, format('%s', j.condition));
     END IF;
 
     -- Retrieve the total number of rows to be copied
     stmt := format('SELECT count(%2$s) FROM %1$s %3$s',
-        r.source, COALESCE(r.pkey, '1'),
+        j.source, COALESCE(j.pkey, '1'),
         CASE WHEN cardinality(v_conditions) > 0 THEN 'WHERE ' || array_to_string(v_conditions, ' AND ') ELSE '' END
     );
     RAISE NOTICE 'Executing: %', stmt;
 
     v_start := clock_timestamp();
-    BEGIN
-        EXECUTE stmt INTO v_total;
-    EXCEPTION WHEN OTHERS THEN
-        r.state := 'failed';
-        GET STACKED DIAGNOSTICS
-            v_ctx     = PG_EXCEPTION_CONTEXT,
-            v_message = MESSAGE_TEXT;
-
-        UPDATE job
-            SET state = r.state, total = COALESCE(r.total, 0) + v_total, elapsed = r.elapsed
-            WHERE job_id = r.job_id;
-        COMMIT;
-
-        RAISE EXCEPTION E'%\nCONTEXT:  %', v_message, v_ctx;
-    END;
+    CALL _execute(p_id, stmt, res);
 
     v_elapsed := clock_timestamp() - v_start;
-    r.elapsed := COALESCE(r.elapsed, '0') + v_elapsed;
+    j.elapsed := COALESCE(j.elapsed, '0') + v_elapsed;
 
     UPDATE job
-        SET total = COALESCE(r.total, 0) + v_total, elapsed = r.elapsed
-        WHERE job_id = r.job_id;
+        SET total = COALESCE(j.total, 0) + res.count, elapsed = j.elapsed
+        WHERE job_id = p_id;
     COMMIT;
 
     LOOP
         -- Exit if there are no rows to copy
-        EXIT WHEN r.total = 0;
+        EXIT WHEN j.total = 0;
 
         -- Refresh condition for the next batch
-        IF r.pkey IS NOT NULL THEN
-          v_conditions[1] := format('%s > %s', r.pkey, r.lastseq);
+        IF j.pkey IS NOT NULL THEN
+          v_conditions[1] := format('%s > %s', j.pkey, j.lastseq);
         END IF;
 
         -- Build INSERT statement
-        SELECT statement INTO stmt FROM columns(r.target, r.source);
+        SELECT statement INTO stmt FROM columns(j.target, j.source);
         stmt := format('INSERT INTO %1$s %2$s %3$s %4$s %5$s',
-            r.target, stmt,
+            j.target, stmt,
             CASE WHEN cardinality(v_conditions) > 0 THEN 'WHERE ' || array_to_string(v_conditions, ' AND ') ELSE '' END,
-            CASE WHEN r.pkey IS NOT NULL THEN format('ORDER BY %s', r.pkey) ELSE '' END,
-            CASE WHEN r.batchsize IS NOT NULL THEN format('LIMIT %s', r.batchsize) ELSE '' END
+            CASE WHEN j.pkey IS NOT NULL THEN format('ORDER BY %s', j.pkey) ELSE '' END,
+            CASE WHEN j.batchsize IS NOT NULL THEN format('LIMIT %s', j.batchsize) ELSE '' END
         );
         RAISE NOTICE 'Executing: %', stmt;
 
         -- Execute INSERT statement
         v_start := clock_timestamp();
-        BEGIN
-            IF r.pkey IS NOT NULL THEN
-              stmt := format('WITH inserted AS (%1$s RETURNING %2$s) SELECT max(%2$s) AS lastseq, count(*) AS rows FROM inserted',
-                  stmt, r.pkey
-              );
-              EXECUTE stmt INTO r.lastseq, v_rows;
 
-            ELSE
-              stmt := format('WITH inserted AS (%s RETURNING 1) SELECT count(*) AS rows FROM inserted', stmt);
-              EXECUTE stmt INTO v_rows;
-            END IF;
+        IF j.pkey IS NOT NULL THEN
+            stmt := format('WITH inserted AS (%1$s RETURNING %2$s) SELECT max(%2$s) AS lastseq, count(*) AS rows FROM inserted',
+                stmt, j.pkey
+            );
+            CALL _execute(p_id, stmt, res);
+            j.lastseq := res.lastseq;
 
-            r.state := 'completed';
-        EXCEPTION WHEN OTHERS THEN
-            r.state := 'failed';
-            GET STACKED DIAGNOSTICS
-                v_ctx     = PG_EXCEPTION_CONTEXT,
-                v_message = MESSAGE_TEXT;
-            EXIT;
-        END;
-        EXIT WHEN v_rows = 0;
+        ELSE
+            stmt := format('WITH inserted AS (%s RETURNING 1) SELECT count(*) AS rows FROM inserted', stmt);
+            CALL _execute(p_id, stmt, res);
+        END IF;
+
+        EXIT WHEN res.rows = 0;
 
         -- Update job record at the end of each batch
         v_elapsed := clock_timestamp() - v_start;
-        r.elapsed := COALESCE(r.elapsed, '0') + v_elapsed;
-        r.rows := r.rows + v_rows;
+        j.elapsed := COALESCE(j.elapsed, '0') + v_elapsed;
+        j.rows := j.rows + res.rows;
 
         UPDATE job
-            SET lastseq = r.lastseq, rows = r.rows, elapsed = r.elapsed
-            WHERE job_id = r.job_id;
+            SET lastseq = j.lastseq, rows = j.rows, elapsed = j.elapsed
+            WHERE job_id = p_id;
         COMMIT;
 
-        EXIT WHEN r.batchsize IS NULL;
+        EXIT WHEN j.batchsize IS NULL;
     END LOOP;
 
     -- Update job record on completion
     UPDATE job
-        SET state = r.state
-        WHERE job_id = r.job_id;
+        SET state = 'completed'
+        WHERE job_id = p_id;
     COMMIT;
-
-    IF r.state = 'failed' THEN
-        RAISE EXCEPTION E'%\nCONTEXT:  %', v_message, v_ctx;
-    END IF;
 END;
 $$;

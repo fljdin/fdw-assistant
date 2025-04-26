@@ -40,8 +40,9 @@ INSERT INTO source.t1 (id, age, name)
 CALL copy(1);
 CALL copy(2);
 
+-- Each job must have a non-zero elapsed time
 SELECT stage_id, job_id, target, part, lastseq, rows, total, state
-  FROM job WHERE stage_id = 1 ORDER BY job_id;
+  FROM job WHERE stage_id = 1 AND elapsed > interval '0s' ORDER BY job_id;
 
 -- "report" view should compiles the state of the last stage for each relation
 SELECT stage_id, target, rows, total, state
