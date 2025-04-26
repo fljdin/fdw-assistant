@@ -1,29 +1,29 @@
 -- withkeywords table is used to test reserved keywords
 -- in "extract" method
-CREATE TABLE withkeywords1 (
+CREATE TABLE "WithKeywords1" (
     id serial primary key,
     "limit" integer not null
 );
 CREATE TABLE
-INSERT INTO withkeywords1 (id, "limit") VALUES (1, 1);
+INSERT INTO "WithKeywords1" (id, "limit") VALUES (1, 1);
 INSERT 0 1
-CREATE TABLE withkeywords2 (
+CREATE TABLE "WithKeywords2" (
     id serial primary key,
     "limit" integer not null
 );
 CREATE TABLE
 INSERT INTO config (source, target, pkey, condition, batchsize, trunc) VALUES
-    ('withkeywords1', 'withkeywords2', 'id', null, null, true);
+    ('"WithKeywords1"', '"WithKeywords2"', 'id', null, null, true);
 INSERT 0 1
-SELECT target, invocation FROM plan('{withkeywords2}');
-    target     |       invocation        
----------------+-------------------------
- withkeywords2 | CALL assistant.copy(1);
+SELECT target, invocation FROM plan('{\"WithKeywords2\"}');
+     target      |       invocation        
+-----------------+-------------------------
+ "WithKeywords2" | CALL assistant.copy(1);
 (1 row)
 
 -- copy(1) should succeed and "limit" must be quoted
 CALL copy(1);
-NOTICE:  Executing: TRUNCATE withkeywords2
-NOTICE:  Executing: SELECT count(id) FROM withkeywords1 WHERE id > 0
-NOTICE:  Executing: INSERT INTO withkeywords2 SELECT id, "limit" FROM withkeywords1 WHERE id > 0 ORDER BY id 
+NOTICE:  Executing: TRUNCATE "WithKeywords2"
+NOTICE:  Executing: SELECT count(id) FROM "WithKeywords1" WHERE id > 0
+NOTICE:  Executing: INSERT INTO "WithKeywords2" SELECT id, "limit" FROM "WithKeywords1" WHERE id > 0 ORDER BY id 
 CALL
