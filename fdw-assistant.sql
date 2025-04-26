@@ -89,9 +89,9 @@ SELECT r.*,
     GROUP BY s.stage_id, j.target
   ) AS r;
 
--- "columns" function returns SELECT statement for the source relation
+-- "_columns" function returns SELECT statement for the source relation
 -- with the column names of the target relation
-CREATE OR REPLACE FUNCTION columns(p_target regclass, p_source regclass)
+CREATE OR REPLACE FUNCTION _columns(p_target regclass, p_source regclass)
 RETURNS TABLE (statement text)
 LANGUAGE SQL AS $$
     SELECT format('SELECT %s FROM %s',
@@ -107,52 +107,13 @@ LANGUAGE SQL AS $$
      GROUP BY p_target;
 $$;
 
--- "lastseq" function return the upper sequence number from the previous stages
-CREATE OR REPLACE FUNCTION lastseq(p_target regclass, p_part integer)
+-- "_lastseq" function return the upper sequence number from the previous stages
+CREATE OR REPLACE FUNCTION _lastseq(p_target regclass, p_part integer)
 RETURNS bigint SET search_path = :INSTALL LANGUAGE sql AS
 $$ SELECT COALESCE(MAX(lastseq), 0) FROM job
     WHERE target = p_target AND part = p_part $$;
 
--- "plan" function prepares a new stage by creating new job and task records
--- "targets" parameter is used to filter the target relations
-CREATE OR REPLACE FUNCTION plan(targets text[] DEFAULT '{}'::text[])
-RETURNS TABLE (target regclass, invocation text)
-SET search_path = :INSTALL LANGUAGE SQL AS $$
-    WITH configs AS (
-        SELECT c.* AS target FROM config c
-        RIGHT JOIN unnest(targets) s ON c.target = s::regclass
-        UNION
-        SELECT * FROM config
-        WHERE cardinality(targets) = 0
-        ORDER BY priority, condition
-    ), new_stage AS (
-        INSERT INTO stage DEFAULT VALUES
-        RETURNING stage_id
-    ), new_jobs AS (
-        INSERT INTO job (stage_id, target, part, lastseq)
-            SELECT stage_id, target, part,
-                   CASE WHEN NOT trunc THEN lastseq(target, part) ELSE 0 END
-            FROM new_stage CROSS JOIN (
-                SELECT * FROM configs
-                CROSS JOIN LATERAL generate_series(0, parts - 1) AS part
-            ) c
-        RETURNING job_id, target, part
-    ), new_tasks AS (
-        INSERT INTO task(job_id, source, target, pkey, batchsize, trunc, condition)
-            SELECT job_id, source, c.target, pkey, batchsize, trunc,
-                CASE WHEN c.parts = 1 THEN condition
-                     ELSE format('%s %% %s = %s%s', pkey, parts, part,
-                        CASE WHEN condition IS NOT NULL
-                             THEN format(' AND %s', condition)
-                             ELSE '' END) END
-            FROM new_jobs j
-            JOIN config c USING (target)
-            RETURNING job_id, target
-    )
-    SELECT target, format('CALL %s.copy(%s);', current_setting('search_path'), job_id)
-      FROM new_tasks;
-$$;
-
+-- "_execute" procedure executes a statement and updates the job record
 CREATE PROCEDURE _execute(p_id bigint, stmt text, OUT res record)
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -177,6 +138,46 @@ EXCEPTION WHEN OTHERS THEN
         v_message = MESSAGE_TEXT;
     RAISE EXCEPTION E'%\nCONTEXT:  %', v_message, v_ctx;
 END;
+$$;
+
+-- "plan" function prepares a new stage by creating new job and task records
+-- "targets" parameter is used to filter the target relations
+CREATE OR REPLACE FUNCTION plan(targets text[] DEFAULT '{}'::text[])
+RETURNS TABLE (target regclass, invocation text)
+SET search_path = :INSTALL LANGUAGE SQL AS $$
+    WITH configs AS (
+        SELECT c.* AS target FROM config c
+        RIGHT JOIN unnest(targets) s ON c.target = s::regclass
+        UNION
+        SELECT * FROM config
+        WHERE cardinality(targets) = 0
+        ORDER BY priority, condition
+    ), new_stage AS (
+        INSERT INTO stage DEFAULT VALUES
+        RETURNING stage_id
+    ), new_jobs AS (
+        INSERT INTO job (stage_id, target, part, lastseq)
+            SELECT stage_id, target, part,
+                   CASE WHEN NOT trunc THEN _lastseq(target, part) ELSE 0 END
+            FROM new_stage CROSS JOIN (
+                SELECT * FROM configs
+                CROSS JOIN LATERAL generate_series(0, parts - 1) AS part
+            ) c
+        RETURNING job_id, target, part
+    ), new_tasks AS (
+        INSERT INTO task(job_id, source, target, pkey, batchsize, trunc, condition)
+            SELECT job_id, source, c.target, pkey, batchsize, trunc,
+                CASE WHEN c.parts = 1 THEN condition
+                     ELSE format('%s %% %s = %s%s', pkey, parts, part,
+                        CASE WHEN condition IS NOT NULL
+                             THEN format(' AND %s', condition)
+                             ELSE '' END) END
+            FROM new_jobs j
+            JOIN config c USING (target)
+            RETURNING job_id, target
+    )
+    SELECT target, format('CALL %s.copy(%s);', current_setting('search_path'), job_id)
+      FROM new_tasks;
 $$;
 
 -- "copy" procedure transfers data from source to target
@@ -259,7 +260,7 @@ BEGIN
         END IF;
 
         -- Build INSERT statement
-        SELECT statement INTO stmt FROM columns(j.target, j.source);
+        SELECT statement INTO stmt FROM _columns(j.target, j.source);
         stmt := format('INSERT INTO %1$s %2$s %3$s %4$s %5$s',
             j.target, stmt,
             CASE WHEN cardinality(v_conditions) > 0 THEN 'WHERE ' || array_to_string(v_conditions, ' AND ') ELSE '' END,
